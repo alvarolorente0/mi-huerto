@@ -3,291 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huerto Pro - Panel Estilo Grafana</title>
+    <title>MKR1000 Huerto Pro</title>
     
-    <!-- Librerías Externas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
     <style>
-        :root {
-            --bg-color: #0b0c10;
-            --card-bg: #1f2937;
-            --text-color: #d1d5db;
-            --accent: #38bdf8;
-            --on-color: #22c55e;
-            --off-color: #ef4444;
-            --auto-color: #eab308;
-        }
-
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background-color: var(--bg-color); 
-            color: var(--text-color);
-            margin: 0; padding: 20px;
-        }
-
-        .dashboard { max-width: 1000px; margin: auto; display: grid; gap: 20px; }
-
-        /* Estilo Grafana Card */
-        .card { 
-            background: var(--card-bg); 
-            border-radius: 8px; 
-            padding: 20px; 
-            border-top: 3px solid var(--accent);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-
-        h2 { font-size: 1.2rem; margin-top: 0; color: var(--accent); display: flex; align-items: center; gap: 10px; }
-
-        /* Controles EV y Abono */
-        .control-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
+        :root { --bg: #0b0c10; --card: #1c252e; --text: #d1d5db; --accent: #38bdf8; --on: #22c55e; --off: #ef4444; --auto: #eab308; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; }
+        .container { max-width: 600px; margin: auto; }
         
-        .device-row { display: flex; align-items: center; justify-content: space-between; background: #111827; padding: 15px; border-radius: 6px; }
-        
-        .btn-group { display: flex; gap: 5px; }
-        
-        button { 
-            padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; 
-            font-weight: bold; background: #374151; color: #9ca3af; transition: 0.3s;
-        }
+        /* Estilo Acordeón */
+        .accordion { background: var(--card); border-radius: 4px; margin-bottom: 8px; border: 1px solid #2d3748; }
+        .acc-header { padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #161d24; font-size: 0.9rem; letter-spacing: 1px; color: var(--accent); }
+        .acc-content { padding: 15px; display: none; border-top: 1px solid #2d3748; }
+        .acc-content.active { display: block; }
 
-        button.active.on { background: var(--on-color); color: white; }
-        button.active.off { background: var(--off-color); color: white; }
-        button.active.auto { background: var(--auto-color); color: black; }
-
-        /* Gráfica */
-        .chart-container { height: 300px; width: 100%; }
+        /* Controles */
+        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 12px; border-radius: 4px; margin-bottom: 8px; }
+        .btn-group button { padding: 8px 10px; border: 1px solid #444; background: #1c252e; color: #777; cursor: pointer; font-size: 0.75rem; }
+        button.active.btn-on { background: var(--on); color: white; border-color: var(--on); }
+        button.active.btn-off { background: var(--off); color: white; border-color: var(--off); }
+        button.active.btn-auto { background: var(--auto); color: black; border-color: var(--auto); }
 
         /* Programador */
-        input, select { 
-            background: #111827; border: 1px solid #374151; color: white; 
-            padding: 8px; border-radius: 4px; margin: 5px;
-        }
-
-        .prog-list { margin-top: 15px; border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-        .prog-list th { text-align: left; border-bottom: 1px solid #374151; padding: 10px; }
-        .prog-list td { padding: 10px; border-bottom: 1px solid #111827; }
-
-        #status { font-size: 0.8rem; text-align: right; margin-bottom: 10px; }
+        .prog-form { display: grid; gap: 8px; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .day-check { font-size: 0.7rem; background: #0f171e; padding: 8px 2px; text-align: center; border-radius: 3px; cursor: pointer; border: 1px solid #333; }
+        .day-check.selected { background: var(--accent); color: black; border-color: var(--accent); }
+        
+        input, select { background: #0f171e; border: 1px solid #333; color: white; padding: 8px; border-radius: 3px; }
+        #status { text-align: left; font-size: 0.7rem; padding: 10px; color: #555; }
+        .temp-display { font-size: 2.5rem; text-align: center; color: var(--accent); font-weight: 200; margin: 10px 0; }
     </style>
 </head>
 <body>
 
-<div class="dashboard">
-    <div id="status">🔌 Conectando al broker...</div>
+<div class="container">
+    <div id="status">🔌 INICIALIZANDO MKR1000...</div>
 
-    <!-- SECCIÓN CONTROLES -->
-    <div class="card">
-        <h2><i class="fas fa-microchip"></i> Panel de Control</h2>
-        <div class="control-grid">
-            <!-- EV1 -->
+    <!-- SECCIÓN: ESTADO ACTUAL -->
+    <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+            <span><i class="fas fa-thermometer-half"></i> SENSOR Y ESTADO</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="acc-content active">
+            <div class="temp-display" id="curr-temp">--°C</div>
             <div class="device-row">
-                <span><i class="fas fa-faucet"></i> EV1</span>
-                <div class="btn-group" id="group-ev1">
-                    <button onclick="setMode('ev1', 'OFF')">OFF</button>
-                    <button onclick="setMode('ev1', 'AUTO')">AUTO</button>
-                    <button onclick="setMode('ev1', 'ON')">ON</button>
+                <span><i class="fas fa-faucet"></i> EV1 (Pin 6)</span>
+                <div class="btn-group" id="g-6">
+                    <button class="btn-off" onclick="sendMQTT(6, '0')">OFF</button>
+                    <button class="btn-auto" onclick="sendMQTT(6, 'AUTO')">AUTO</button>
+                    <button class="btn-on" onclick="sendMQTT(6, '1')">ON</button>
                 </div>
             </div>
-            <!-- EV2 -->
             <div class="device-row">
-                <span><i class="fas fa-faucet"></i> EV2</span>
-                <div class="btn-group" id="group-ev2">
-                    <button onclick="setMode('ev2', 'OFF')">OFF</button>
-                    <button onclick="setMode('ev2', 'AUTO')">AUTO</button>
-                    <button onclick="setMode('ev2', 'ON')">ON</button>
+                <span><i class="fas fa-faucet"></i> EV2 (Pin 7)</span>
+                <div class="btn-group" id="g-7">
+                    <button class="btn-off" onclick="sendMQTT(7, '0')">OFF</button>
+                    <button class="btn-auto" onclick="sendMQTT(7, 'AUTO')">AUTO</button>
+                    <button class="btn-on" onclick="sendMQTT(7, '1')">ON</button>
                 </div>
             </div>
-            <!-- ABONO -->
             <div class="device-row">
-                <span><i class="fas fa-seedling"></i> ABONO</span>
-                <div class="btn-group" id="group-abno">
-                    <button onclick="setMode('abno', 'OFF')">OFF</button>
-                    <button onclick="setMode('abno', 'AUTO')">AUTO</button>
-                    <button onclick="setMode('abno', 'ON')">ON</button>
+                <span><i class="fas fa-box-open"></i> ABNO (Pin 9)</span>
+                <div class="btn-group" id="g-9">
+                    <button class="btn-off" onclick="sendMQTT(9, '0')">OFF</button>
+                    <button class="btn-auto" onclick="sendMQTT(9, 'AUTO')">AUTO</button>
+                    <button class="btn-on" onclick="sendMQTT(9, '1')">ON</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- SECCIÓN GRÁFICA -->
-    <div class="card">
-        <h2><i class="fas fa-chart-line"></i> Temperatura (Histórico 30 min)</h2>
-        <div class="chart-container">
+    <!-- SECCIÓN: GRÁFICA HISTÓRICA -->
+    <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+            <span><i class="fas fa-chart-line"></i> HISTÓRICO SEMANAL</span>
+            <i class="fas fa-chevron-down"></i>
+        </div>
+        <div class="acc-content">
             <canvas id="tempChart"></canvas>
         </div>
     </div>
 
-    <!-- SECCIÓN PROGRAMADOR -->
-    <div class="card">
-        <h2><i class="fas fa-calendar-alt"></i> Crear Programa</h2>
-        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <input type="time" id="prog-hora">
-            <select id="prog-dia">
-                <option value="Diario">Diario</option>
-                <option value="Lunes">Lunes</option>
-                <option value="Martes">Martes</option>
-                <option value="Miércoles">Miércoles</option>
-                <option value="Jueves">Jueves</option>
-                <option value="Viernes">Viernes</option>
-                <option value="Sábado">Sábado</option>
-                <option value="Domingo">Domingo</option>
-            </select>
-            <select id="prog-sector">
-                <option value="EV1">EV1</option>
-                <option value="EV2">EV2</option>
-                <option value="ABONO">ABONO</option>
-            </select>
-            <button class="active on" onclick="addProgram()">+ Añadir</button>
+    <!-- SECCIÓN: PROGRAMADOR -->
+    <div class="accordion">
+        <div class="acc-header" onclick="toggleAcc(this)">
+            <span><i class="fas fa-calendar-check"></i> PROGRAMADOR ACORDEÓN</span>
+            <i class="fas fa-chevron-down"></i>
         </div>
-
-        <table class="prog-list">
-            <thead>
-                <tr>
-                    <th>Hora</th>
-                    <th>Día</th>
-                    <th>Sector</th>
-                    <th>Estado</th>
-                    <th>Acción</th>
-                </tr>
-            </thead>
-            <tbody id="prog-body">
-                <!-- Se llenará dinámicamente -->
-            </tbody>
-        </table>
+        <div class="acc-content">
+            <div class="prog-form">
+                <div style="display:flex; gap:5px;">
+                    <div style="flex:1; font-size: 0.8rem;">ON: <input type="time" id="on-time" style="width:90%"></div>
+                    <div style="flex:1; font-size: 0.8rem;">OFF: <input type="time" id="off-time" style="width:90%"></div>
+                </div>
+                <div class="days-grid" id="days-selector">
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Lu</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Ma</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Mi</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Ju</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Vi</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Sa</div>
+                    <div class="day-check" onclick="this.classList.toggle('selected')">Do</div>
+                </div>
+                <select id="sector-sel">
+                    <option value="6">EV1 (Sector 1)</option>
+                    <option value="7">EV2 (Sector 2)</option>
+                    <option value="9">ABNO (Abonado)</option>
+                </select>
+                <button onclick="addProgram()" style="background:var(--accent); color:black; font-weight:bold; padding:12px; border:none; cursor:pointer">CREAR PROGRAMA</button>
+            </div>
+            <div id="lista-progs" style="margin-top:15px;"></div>
+        </div>
     </div>
 </div>
 
 <script>
     const TOPIC_PREFIX = "CVH_HUERTO";
-    let programas = [];
+    let historyData = JSON.parse(localStorage.getItem('mkr1000_temp')) || [];
+    let lastTime = 0;
 
-    // --- CONFIGURACIÓN MQTT ---
-    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "user_" + Math.random());
-    
-    client.connect({
-        useSSL: true,
-        onSuccess: () => {
-            document.getElementById('status').innerHTML = "🟢 Sistema Online";
-            client.subscribe(TOPIC_PREFIX + "/telemetria/temp");
-        },
-        onFailure: (e) => { document.getElementById('status').innerHTML = "❌ Error: " + e.errorMessage; }
-    });
+    // Conexión MQTT Segura
+    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "mkr_" + Math.random());
+    client.connect({ useSSL: true, onSuccess: () => { 
+        document.getElementById('status').innerHTML = "🟢 MKR1000 CONECTADO";
+        client.subscribe(TOPIC_PREFIX + "/telemetria/temp");
+    }});
 
-    client.onMessageArrived = (msg) => {
-        if(msg.destinationName.includes("temp")) {
-            updateChart(parseFloat(msg.payloadString));
-        }
-    };
-
-    // --- LÓGICA DE BOTONES (MODOS) ---
-    function setMode(device, mode) {
-        // Enviar vía MQTT el modo elegido
-        const message = new Paho.MQTT.Message(mode);
-        message.destinationName = `${TOPIC_PREFIX}/modo/${device}`;
-        client.send(message);
-
-        // Actualizar UI
-        const buttons = document.querySelectorAll(`#group-${device} button`);
-        buttons.forEach(btn => {
-            btn.classList.remove('active', 'on', 'off', 'auto');
-            if(btn.innerText === mode) {
-                btn.classList.add('active', mode.toLowerCase());
-            }
-        });
+    // Función para mover las salidas de la placa
+    function sendMQTT(pin, val) {
+        const msg = new Paho.MQTT.Message(val);
+        msg.destinationName = `${TOPIC_PREFIX}/control/${pin}`;
+        client.send(msg);
+        
+        // Feedback visual
+        const group = document.getElementById(`g-${pin}`);
+        group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
     }
 
-    // --- LÓGICA DE LA GRÁFICA ---
+    // Gráfica estilo Grafana
     const ctx = document.getElementById('tempChart').getContext('2d');
-    const tempChart = new Chart(ctx, {
+    const chart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: [],
-            datasets: [{
-                label: 'Temperatura °C',
-                data: [],
-                borderColor: '#38bdf8',
-                backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            labels: historyData.map(d => d.t),
+            datasets: [{ 
+                label: 'Temp °C', 
+                data: historyData.map(d => d.v), 
+                borderColor: '#38bdf8', 
+                backgroundColor: 'rgba(56,189,248,0.05)',
+                borderWidth: 2,
+                pointRadius: 0,
                 fill: true,
-                tension: 0.4
+                tension: 0.4 
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
             scales: {
-                y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } },
-                x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }
+                x: { display: false },
+                y: { grid: { color: '#222' }, ticks: { color: '#555' } }
             },
             plugins: { legend: { display: false } }
         }
     });
 
-    function updateChart(val) {
-        const now = new Date();
-        const timeLabel = now.getHours() + ":" + now.getMinutes().toString().padStart(2, '0');
-        
-        // Simular guardado cada 30 min (para la demo añadimos cada vez que llega dato)
-        tempChart.data.labels.push(timeLabel);
-        tempChart.data.datasets[0].data.push(val);
-        
-        if(tempChart.data.labels.length > 20) {
-            tempChart.data.labels.shift();
-            tempChart.data.datasets[0].data.shift();
+    client.onMessageArrived = (msg) => {
+        if(msg.destinationName.includes("temp")) {
+            const val = parseFloat(msg.payloadString);
+            document.getElementById('curr-temp').innerHTML = val + "°C";
+            
+            const now = Date.now();
+            // Lógica de 30 minutos (1800000ms)
+            if (now - lastTime > 1800000) {
+                const label = new Date().toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit'});
+                historyData.push({t: label, v: val});
+                if(historyData.length > 336) historyData.shift(); // 1 semana aprox
+                
+                localStorage.setItem('mkr1000_temp', JSON.stringify(historyData));
+                chart.data.labels = historyData.map(d => d.t);
+                chart.data.datasets[0].data = historyData.map(d => d.v);
+                chart.update();
+                lastTime = now;
+            }
         }
-        tempChart.update();
+    };
+
+    function toggleAcc(el) {
+        const content = el.nextElementSibling;
+        content.classList.toggle('active');
+        el.querySelector('i.fa-chevron-down').style.transform = content.classList.contains('active') ? "rotate(180deg)" : "rotate(0deg)";
     }
 
-    // --- LÓGICA DEL PROGRAMADOR ---
     function addProgram() {
-        const hora = document.getElementById('prog-hora').value;
-        const dia = document.getElementById('prog-dia').value;
-        const sector = document.getElementById('prog-sector').value;
-
-        if(!hora) return alert("Elige una hora");
-
-        const nuevoProg = { id: Date.now(), hora, dia, sector, activo: true };
-        programas.push(nuevoProg);
-        renderProgramas();
+        const tOn = document.getElementById('on-time').value;
+        const tOff = document.getElementById('off-time').value;
+        const sector = document.getElementById('sector-sel').options[document.getElementById('sector-sel').selectedIndex].text;
+        const days = Array.from(document.querySelectorAll('.day-check.selected')).map(d => d.innerText);
         
-        // Aquí podrías enviar el array de programas por MQTT para que el ESP32 los guarde
-        const msg = new Paho.MQTT.Message(JSON.stringify(programas));
-        msg.destinationName = TOPIC_PREFIX + "/config/programas";
-        msg.retained = true;
-        client.send(msg);
-    }
+        if(!tOn || !tOff || days.length === 0) { alert("Faltan datos"); return; }
 
-    function toggleProg(id) {
-        const p = programas.find(x => x.id === id);
-        p.activo = !p.activo;
-        renderProgramas();
-    }
-
-    function deleteProg(id) {
-        programas = programas.filter(x => x.id !== id);
-        renderProgramas();
-    }
-
-    function renderProgramas() {
-        const tbody = document.getElementById('prog-body');
-        tbody.innerHTML = "";
-        programas.forEach(p => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${p.hora}</td>
-                    <td>${p.dia}</td>
-                    <td>${p.sector}</td>
-                    <td>
-                        <button class="${p.activo ? 'active on' : ''}" onclick="toggleProg(${p.id})">
-                            ${p.activo ? 'ACTIVO' : 'PAUSA'}
-                        </button>
-                    </td>
-                    <td><button onclick="deleteProg(${p.id})"><i class="fas fa-trash"></i></button></td>
-                </tr>
-            `;
-        });
+        const id = Date.now();
+        const html = `
+            <div id="${id}" style="background:#0f171e; padding:10px; margin-bottom:5px; border-left: 3px solid var(--accent); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                <div>
+                    <b style="color:var(--accent)">${sector.split(' ')[0]}</b>: ${tOn} - ${tOff}<br>
+                    <small style="color:#666">${days.join(', ')}</small>
+                </div>
+                <i class="fas fa-trash" onclick="document.getElementById('${id}').remove()" style="color:var(--off); cursor:pointer; padding:10px;"></i>
+            </div>
+        `;
+        document.getElementById('lista-progs').innerHTML += html;
     }
 </script>
 
