@@ -3,223 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MKR1000 Huerto Pro</title>
-    
+    <title>Control Huerto MKR1000</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
     <style>
-        :root { --bg: #0b0c10; --card: #1c252e; --text: #d1d5db; --accent: #38bdf8; --on: #22c55e; --off: #ef4444; --auto: #eab308; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 10px; }
-        .container { max-width: 600px; margin: auto; }
-        
-        /* Estilo Acordeón */
-        .accordion { background: var(--card); border-radius: 4px; margin-bottom: 8px; border: 1px solid #2d3748; }
-        .acc-header { padding: 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #161d24; font-size: 0.9rem; letter-spacing: 1px; color: var(--accent); }
-        .acc-content { padding: 15px; display: none; border-top: 1px solid #2d3748; }
-        .acc-content.active { display: block; }
-
-        /* Controles */
-        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 12px; border-radius: 4px; margin-bottom: 8px; }
-        .btn-group button { padding: 8px 10px; border: 1px solid #444; background: #1c252e; color: #777; cursor: pointer; font-size: 0.75rem; }
-        button.active.btn-on { background: var(--on); color: white; border-color: var(--on); }
-        button.active.btn-off { background: var(--off); color: white; border-color: var(--off); }
-        button.active.btn-auto { background: var(--auto); color: black; border-color: var(--auto); }
-
-        /* Programador */
-        .prog-form { display: grid; gap: 8px; }
-        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-        .day-check { font-size: 0.7rem; background: #0f171e; padding: 8px 2px; text-align: center; border-radius: 3px; cursor: pointer; border: 1px solid #333; }
-        .day-check.selected { background: var(--accent); color: black; border-color: var(--accent); }
-        
-        input, select { background: #0f171e; border: 1px solid #333; color: white; padding: 8px; border-radius: 3px; }
-        #status { text-align: left; font-size: 0.7rem; padding: 10px; color: #555; }
-        .temp-display { font-size: 2.5rem; text-align: center; color: var(--accent); font-weight: 200; margin: 10px 0; }
+        :root { --bg: #0b0c10; --card: #1c252e; --accent: #38bdf8; --on: #22c55e; --off: #ef4444; --auto: #eab308; }
+        body { font-family: sans-serif; background: var(--bg); color: #d1d5db; margin: 0; padding: 15px; }
+        .panel { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #2d3748; }
+        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 10px; margin-bottom: 5px; border-radius: 4px; }
+        .btn-group button { padding: 8px 12px; border: 1px solid #444; background: #1c252e; color: #777; cursor: pointer; }
+        button.active.btn-on { background: var(--on); color: white; }
+        button.active.btn-off { background: var(--off); color: white; }
+        button.active.btn-auto { background: var(--auto); color: black; }
+        #status { font-size: 0.7rem; color: var(--accent); margin-bottom: 10px; }
+        .hidden { display: none; }
+        input, select { background: #0f171e; border: 1px solid #333; color: white; padding: 5px; margin: 5px 0; width: 100%; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="status">🔌 INICIALIZANDO MKR1000...</div>
+    <div id="status">Conectando MKR1000...</div>
 
-    <!-- SECCIÓN: ESTADO ACTUAL -->
-    <div class="accordion">
-        <div class="acc-header" onclick="toggleAcc(this)">
-            <span><i class="fas fa-thermometer-half"></i> SENSOR Y ESTADO</span>
-            <i class="fas fa-chevron-down"></i>
+    <!-- CONTROL MANUAL -->
+    <div class="panel">
+        <h3 style="margin-top:0"><i class="fas fa- power-off"></i> Control Manual</h3>
+        <div class="device-row">
+            <span>EV1 (Pin 6)</span>
+            <div class="btn-group" id="g-6">
+                <button class="btn-off" onclick="sendMQTT(6, '0')">OFF</button>
+                <button class="btn-auto" onclick="sendMQTT(6, '2')">AUTO</button>
+                <button class="btn-on" onclick="sendMQTT(6, '1')">ON</button>
+            </div>
         </div>
-        <div class="acc-content active">
-            <div class="temp-display" id="curr-temp">--°C</div>
-            <div class="device-row">
-                <span><i class="fas fa-faucet"></i> EV1 (Pin 6)</span>
-                <div class="btn-group" id="g-6">
-                    <button class="btn-off" onclick="sendMQTT(6, '0')">OFF</button>
-                    <button class="btn-auto" onclick="sendMQTT(6, 'AUTO')">AUTO</button>
-                    <button class="btn-on" onclick="sendMQTT(6, '1')">ON</button>
-                </div>
+        <div class="device-row">
+            <span>EV2 (Pin 7)</span>
+            <div class="btn-group" id="g-7">
+                <button class="btn-off" onclick="sendMQTT(7, '0')">OFF</button>
+                <button class="btn-auto" onclick="sendMQTT(7, '2')">AUTO</button>
+                <button class="btn-on" onclick="sendMQTT(7, '1')">ON</button>
             </div>
-            <div class="device-row">
-                <span><i class="fas fa-faucet"></i> EV2 (Pin 7)</span>
-                <div class="btn-group" id="g-7">
-                    <button class="btn-off" onclick="sendMQTT(7, '0')">OFF</button>
-                    <button class="btn-auto" onclick="sendMQTT(7, 'AUTO')">AUTO</button>
-                    <button class="btn-on" onclick="sendMQTT(7, '1')">ON</button>
-                </div>
-            </div>
-            <div class="device-row">
-                <span><i class="fas fa-box-open"></i> ABNO (Pin 9)</span>
-                <div class="btn-group" id="g-9">
-                    <button class="btn-off" onclick="sendMQTT(9, '0')">OFF</button>
-                    <button class="btn-auto" onclick="sendMQTT(9, 'AUTO')">AUTO</button>
-                    <button class="btn-on" onclick="sendMQTT(9, '1')">ON</button>
-                </div>
+        </div>
+        <div class="device-row">
+            <span>ABNO (Pin 9)</span>
+            <div class="btn-group" id="g-9">
+                <button class="btn-off" onclick="sendMQTT(9, '0')">OFF</button>
+                <button class="btn-auto" onclick="sendMQTT(9, '2')">AUTO</button>
+                <button class="btn-on" onclick="sendMQTT(9, '1')">ON</button>
             </div>
         </div>
     </div>
 
-    <!-- SECCIÓN: GRÁFICA HISTÓRICA -->
-    <div class="accordion">
-        <div class="acc-header" onclick="toggleAcc(this)">
-            <span><i class="fas fa-chart-line"></i> HISTÓRICO SEMANAL</span>
-            <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="acc-content">
-            <canvas id="tempChart"></canvas>
+    <!-- PROGRAMADOR DESPLEGABLE -->
+    <div class="panel">
+        <h3 onclick="document.getElementById('prog-form').classList.toggle('hidden')" style="cursor:pointer">
+            <i class="fas fa-calendar-alt"></i> Programador (Click para abrir)
+        </h3>
+        <div id="prog-form" class="hidden">
+            <label>Encendido:</label> <input type="time" id="on-time">
+            <label>Apagado:</label> <input type="time" id="off-time">
+            <select id="sector-sel">
+                <option value="6">EV1 (Pin 6)</option>
+                <option value="7">EV2 (Pin 7)</option>
+                <option value="9">ABNO (Pin 9)</option>
+            </select>
+            <button onclick="addProgram()" style="width:100%; padding:10px; background:var(--accent); border:none; margin-top:10px">AÑADIR</button>
+            <div id="lista-progs" style="margin-top:10px"></div>
         </div>
     </div>
 
-    <!-- SECCIÓN: PROGRAMADOR -->
-    <div class="accordion">
-        <div class="acc-header" onclick="toggleAcc(this)">
-            <span><i class="fas fa-calendar-check"></i> PROGRAMADOR ACORDEÓN</span>
-            <i class="fas fa-chevron-down"></i>
-        </div>
-        <div class="acc-content">
-            <div class="prog-form">
-                <div style="display:flex; gap:5px;">
-                    <div style="flex:1; font-size: 0.8rem;">ON: <input type="time" id="on-time" style="width:90%"></div>
-                    <div style="flex:1; font-size: 0.8rem;">OFF: <input type="time" id="off-time" style="width:90%"></div>
-                </div>
-                <div class="days-grid" id="days-selector">
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Lu</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Ma</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Mi</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Ju</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Vi</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Sa</div>
-                    <div class="day-check" onclick="this.classList.toggle('selected')">Do</div>
-                </div>
-                <select id="sector-sel">
-                    <option value="6">EV1 (Sector 1)</option>
-                    <option value="7">EV2 (Sector 2)</option>
-                    <option value="9">ABNO (Abonado)</option>
-                </select>
-                <button onclick="addProgram()" style="background:var(--accent); color:black; font-weight:bold; padding:12px; border:none; cursor:pointer">CREAR PROGRAMA</button>
-            </div>
-            <div id="lista-progs" style="margin-top:15px;"></div>
-        </div>
+    <div class="panel">
+        <canvas id="tempChart" style="height:150px"></canvas>
     </div>
-</div>
 
 <script>
     const TOPIC_PREFIX = "CVH_HUERTO";
-    let historyData = JSON.parse(localStorage.getItem('mkr1000_temp')) || [];
-    let lastTime = 0;
-
-    // Conexión MQTT Segura
-    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "mkr_" + Math.random());
-    client.connect({ useSSL: true, onSuccess: () => { 
-        document.getElementById('status').innerHTML = "🟢 MKR1000 CONECTADO";
+    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "web_" + Math.random());
+    
+    client.connect({ useSSL: true, onSuccess: () => {
+        document.getElementById('status').innerText = "🟢 MKR1000 CONECTADO";
         client.subscribe(TOPIC_PREFIX + "/telemetria/temp");
     }});
 
-    // Función para mover las salidas de la placa
     function sendMQTT(pin, val) {
         const msg = new Paho.MQTT.Message(val);
-        msg.destinationName = `${TOPIC_PREFIX}/control/${pin}`;
+        msg.destinationName = TOPIC_PREFIX + "/control/" + pin;
         client.send(msg);
         
-        // Feedback visual
         const group = document.getElementById(`g-${pin}`);
         group.querySelectorAll('button').forEach(b => b.classList.remove('active'));
         event.target.classList.add('active');
     }
 
-    // Gráfica estilo Grafana
-    const ctx = document.getElementById('tempChart').getContext('2d');
+    // Gráfica simple
+    const ctx = document.getElementById('tempChart');
     const chart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: historyData.map(d => d.t),
-            datasets: [{ 
-                label: 'Temp °C', 
-                data: historyData.map(d => d.v), 
-                borderColor: '#38bdf8', 
-                backgroundColor: 'rgba(56,189,248,0.05)',
-                borderWidth: 2,
-                pointRadius: 0,
-                fill: true,
-                tension: 0.4 
-            }]
-        },
-        options: {
-            scales: {
-                x: { display: false },
-                y: { grid: { color: '#222' }, ticks: { color: '#555' } }
-            },
-            plugins: { legend: { display: false } }
-        }
+        data: { labels: [], datasets: [{ label: 'Temp', data: [], borderColor: '#38bdf8', tension:0.3 }] },
+        options: { plugins: { legend: { display: false } } }
     });
 
     client.onMessageArrived = (msg) => {
         if(msg.destinationName.includes("temp")) {
             const val = parseFloat(msg.payloadString);
-            document.getElementById('curr-temp').innerHTML = val + "°C";
-            
-            const now = Date.now();
-            // Lógica de 30 minutos (1800000ms)
-            if (now - lastTime > 1800000) {
-                const label = new Date().toLocaleString('es-ES', {hour:'2-digit', minute:'2-digit'});
-                historyData.push({t: label, v: val});
-                if(historyData.length > 336) historyData.shift(); // 1 semana aprox
-                
-                localStorage.setItem('mkr1000_temp', JSON.stringify(historyData));
-                chart.data.labels = historyData.map(d => d.t);
-                chart.data.datasets[0].data = historyData.map(d => d.v);
-                chart.update();
-                lastTime = now;
-            }
+            const now = new Date().toLocaleTimeString();
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(val);
+            if(chart.data.labels.length > 10) { chart.data.labels.shift(); chart.data.datasets[0].data.shift(); }
+            chart.update();
         }
     };
 
-    function toggleAcc(el) {
-        const content = el.nextElementSibling;
-        content.classList.toggle('active');
-        el.querySelector('i.fa-chevron-down').style.transform = content.classList.contains('active') ? "rotate(180deg)" : "rotate(0deg)";
-    }
-
     function addProgram() {
-        const tOn = document.getElementById('on-time').value;
-        const tOff = document.getElementById('off-time').value;
-        const sector = document.getElementById('sector-sel').options[document.getElementById('sector-sel').selectedIndex].text;
-        const days = Array.from(document.querySelectorAll('.day-check.selected')).map(d => d.innerText);
-        
-        if(!tOn || !tOff || days.length === 0) { alert("Faltan datos"); return; }
-
-        const id = Date.now();
-        const html = `
-            <div id="${id}" style="background:#0f171e; padding:10px; margin-bottom:5px; border-left: 3px solid var(--accent); display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
-                <div>
-                    <b style="color:var(--accent)">${sector.split(' ')[0]}</b>: ${tOn} - ${tOff}<br>
-                    <small style="color:#666">${days.join(', ')}</small>
-                </div>
-                <i class="fas fa-trash" onclick="document.getElementById('${id}').remove()" style="color:var(--off); cursor:pointer; padding:10px;"></i>
-            </div>
-        `;
-        document.getElementById('lista-progs').innerHTML += html;
+        const on = document.getElementById('on-time').value;
+        const off = document.getElementById('off-time').value;
+        const pin = document.getElementById('sector-sel').value;
+        document.getElementById('lista-progs').innerHTML += `<div style="font-size:0.8rem; background:#0f171e; padding:5px; margin-top:2px">Pin ${pin}: ${on} a ${off}</div>`;
     }
 </script>
-
 </body>
 </html>
