@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Riego CVH</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { background: #0f0f0f; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .card { background: #1a1a1a; border-radius: 20px; padding: 30px; max-width: 400px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .temp-val { font-size: 4rem; font-weight: bold; color: #00d4ff; margin: 20px 0; }
+        .btn { width: 100%; padding: 20px; margin: 10px 0; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .off { background: #2a2a2a; color: #777; }
+        .on { background: #007bff; color: white; box-shadow: 0 0 20px rgba(0,123,255,0.4); }
+        .status { font-size: 0.8rem; color: #555; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Huerto Inteligente</h2>
+    <div id="temp" class="temp-val">--°C</div>
+    <p>Temperatura Actual</p>
+    
+    <button id="btn0" class="btn off" onclick="toggle(0)">TOMATE 🍅</button>
+    <button id="btn1" class="btn off" onclick="toggle(1)">LECHUGA 🥬</button>
+    <button id="btn2" class="btn off" onclick="toggle(2)">ABONO 🧪</button>
+
+    <div id="status" class="status">Conectando al servidor...</div>
+</div>
+
+<script>
+    const TOPIC_PREFIX = "CVH_HUERTO";
+    let estados = [false, false, false];
+
+    // Conexión WebSockets para el navegador
+    const client = new Paho.MQTT.Client("broker.hivemq.com", 8000, "web_user_" + Math.random());
+
+    client.onConnectionLost = (resp) => { document.getElementById('status').innerHTML = "Desconectado"; };
+    
+    client.onMessageArrived = (msg) => {
+        if(msg.destinationName === TOPIC_PREFIX + "/telemetria/temp") {
+            document.getElementById('temp').innerHTML = msg.payloadString + "°C";
+        }
+    };
+
+    client.connect({
+        onSuccess: () => {
+            document.getElementById('status').innerHTML = "🟢 Conectado al Huerto";
+            client.subscribe(TOPIC_PREFIX + "/telemetria/temp");
+        }
+    });
+
+    function toggle(id) {
+        estados[id] = !estados[id];
+        const val = estados[id] ? "1" : "0";
+        const btn = document.getElementById('btn' + id);
+        
+        // Enviar orden
+        const message = new Paho.MQTT.Message(val);
+        message.destinationName = TOPIC_PREFIX + "/control/" + id;
+        client.send(message);
+
+        // Actualizar interfaz
+        btn.className = estados[id] ? "btn on" : "btn off";
+    }
+</script>
+
+</body>
+</html>
