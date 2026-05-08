@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huerto Inteligente v3</title>
+    <title>Huerto Pro v5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -13,24 +13,24 @@
         .main-temp { font-size: 4rem; font-weight: bold; color: var(--accent); margin: 10px 0; }
         .panel { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #2d3748; text-align: left; }
         .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 12px; margin-bottom: 8px; border-radius: 6px; }
+        .btn-group button { padding: 10px; border: 1px solid #333; background: #1c252e; color: #666; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        button.active { color: white !important; border-color: white; }
+        .btn-on.active { background: var(--on); } .btn-off.active { background: var(--off); } .btn-auto.active { background: var(--auto); color: black !important; }
         
-        /* Estilo de botones activos */
-        .btn-group button { padding: 10px 12px; border: 1px solid #333; background: #1c252e; color: #666; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.2s; }
-        button.active { color: white !important; border-color: white; transform: scale(1.05); }
-        .btn-on.active { background: var(--on); }
-        .btn-off.active { background: var(--off); }
-        .btn-auto.active { background: var(--auto); color: black !important; }
-
-        #prog-panel { display: none; margin-top: 10px; border: 1px dashed var(--accent); }
-        .item-prog { background: #0f171e; padding: 12px; border-radius: 6px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent); }
-        .btn-delete { color: var(--off); cursor: pointer; font-size: 1.2rem; }
+        .multi-select { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
+        .chip { padding: 8px; background: #1c252e; border: 1px solid #333; border-radius: 4px; cursor: pointer; font-size: 0.8rem; flex: 1; text-align: center; }
+        .chip.selected { background: var(--accent); color: black; }
+        
+        #prog-panel { display: none; }
+        .item-prog { background: #0f171e; padding: 12px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #444; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
+        .item-prog.active-prog { border-left-color: var(--on); }
+        .actions i { cursor: pointer; margin-left: 15px; font-size: 1.2rem; }
     </style>
 </head>
 <body>
 
     <div class="main-temp" id="temp-val">--°C</div>
 
-    <!-- PINES CON PERSISTENCIA -->
     <div class="panel">
         <div class="device-row" id="row-6">
             <span><i class="fas fa-faucet"></i> EV1</span>
@@ -58,95 +58,87 @@
         </div>
     </div>
 
-    <button class="panel" style="width:100%; color:var(--accent); cursor:pointer; font-weight:bold" onclick="toggleProgPanel()">
-        <i class="fas fa-calendar-plus"></i> GESTIONAR PROGRAMACIÓN
-    </button>
+    <button class="panel" style="width:100%; color:var(--accent); cursor:pointer; font-weight:bold" onclick="toggleProgPanel()">+ GESTIONAR PROGRAMAS</button>
 
     <div id="prog-panel" class="panel">
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-            <input type="time" id="t-on" style="flex:1; padding:8px; border-radius:4px; border:none;">
-            <input type="time" id="t-off" style="flex:1; padding:8px; border-radius:4px; border:none;">
+        <div class="multi-select" id="days-picker">
+            <div class="chip" data-val="1">Lu</div><div class="chip" data-val="2">Ma</div><div class="chip" data-val="3">Mi</div>
+            <div class="chip" data-val="4">Ju</div><div class="chip" data-val="5">Vi</div><div class="chip" data-val="6">Sa</div><div class="chip" data-val="0">Do</div>
         </div>
-        <select id="s-pin" style="width:100%; padding:8px; margin-bottom:10px;">
-            <option value="6">Electroválvula 1</option>
-            <option value="7">Electroválvula 2</option>
-            <option value="9">Abonado</option>
-        </select>
-        <button onclick="saveNewProg()" style="width:100%; background:var(--accent); border:none; padding:12px; font-weight:bold; border-radius:4px; cursor:pointer">AÑADIR PROGRAMA</button>
+        <div class="multi-select" id="pins-picker">
+            <div class="chip" data-val="6">EV1</div><div class="chip" data-val="7">EV2</div><div class="chip" data-val="9">ABNO</div>
+        </div>
+        <input type="time" id="t-on" style="padding:8px;"> <input type="time" id="t-off" style="padding:8px;">
+        <button onclick="saveNewProg()" style="width:100%; background:var(--accent); border:none; padding:12px; font-weight:bold; margin-top:10px;">AÑADIR</button>
         <div id="lista-progs" style="margin-top:15px;"></div>
     </div>
 
-    <div class="panel">
-        <canvas id="tempChart"></canvas>
-    </div>
+    <div class="panel"><canvas id="tempChart"></canvas></div>
 
 <script>
     const TOPIC = "CVH_HUERTO";
-    let chart;
-    
-    // CARGAR DATOS GUARDADOS
     let programas = JSON.parse(localStorage.getItem('h_progs')) || [];
     let estados = JSON.parse(localStorage.getItem('h_states')) || { "6":"0", "7":"0", "9":"0" };
     let historico = JSON.parse(localStorage.getItem('h_chart')) || Array(48).fill(null);
 
-    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "user_" + Math.random());
+    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "u_" + Math.random());
 
     client.connect({ useSSL: true, onSuccess: () => {
         client.subscribe(TOPIC + "/telemetria/temp");
-        console.log("Conectado");
-        syncEverything();
-    }});
-
-    function syncEverything() {
-        renderProgs();
         updateButtonsUI();
+        renderProgs();
         initChart();
-    }
+    }});
 
     function changeMode(pin, val) {
         estados[pin] = val;
         localStorage.setItem('h_states', JSON.stringify(estados));
-        
         const msg = new Paho.MQTT.Message(val);
         msg.destinationName = `${TOPIC}/control/${pin}`;
-        msg.retained = true; // IMPORTANTE: Mantiene el estado en el servidor
+        msg.retained = true;
         client.send(msg);
-        
         updateButtonsUI();
     }
 
     function updateButtonsUI() {
         [6, 7, 9].forEach(pin => {
-            const row = document.getElementById(`row-${pin}`);
-            const btns = row.querySelectorAll('button');
+            const btns = document.getElementById(`row-${pin}`).querySelectorAll('button');
             btns.forEach(b => b.classList.remove('active'));
-            
-            if(estados[pin] === "0") btns[0].classList.add('active');
-            if(estados[pin] === "2") btns[1].classList.add('active');
-            if(estados[pin] === "1") btns[2].classList.add('active');
+            const s = estados[pin];
+            if(s==="0") btns[0].classList.add('active'); else if(s==="2") btns[1].classList.add('active'); else if(s==="1") btns[2].classList.add('active');
         });
     }
 
     function saveNewProg() {
-        const p = {
-            id: Date.now(),
-            pin: document.getElementById('s-pin').value,
-            on: document.getElementById('t-on').value,
-            off: document.getElementById('t-off').value
-        };
-        if(!p.on || !p.off) return alert("Pon las horas");
-        
-        programas.push(p);
-        localStorage.setItem('h_progs', JSON.stringify(programas));
-        renderProgs();
-        sendProgsToArduino();
+        const days = Array.from(document.querySelectorAll('#days-picker .selected')).map(c => parseInt(c.dataset.val));
+        const pins = Array.from(document.querySelectorAll('#pins-picker .selected')).map(c => parseInt(c.dataset.val));
+        const on = document.getElementById('t-on').value;
+        const off = document.getElementById('t-off').value;
+
+        if(!days.length || !pins.length || !on || !off) return alert("Completa todos los campos");
+
+        programas.push({ id: Date.now(), days, pins, on, off, enabled: true });
+        sync();
+    }
+
+    function toggleProg(id) {
+        const p = programas.find(x => x.id === id);
+        p.enabled = !p.enabled;
+        sync();
     }
 
     function delProg(id) {
         programas = programas.filter(x => x.id !== id);
+        sync();
+    }
+
+    function sync() {
         localStorage.setItem('h_progs', JSON.stringify(programas));
         renderProgs();
-        sendProgsToArduino();
+        const msg = new Paho.MQTT.Message(JSON.stringify(programas));
+        msg.destinationName = TOPIC + "/config/progs";
+        msg.retained = true;
+        client.send(msg);
     }
 
     function renderProgs() {
@@ -154,40 +146,29 @@
         div.innerHTML = "";
         programas.forEach(p => {
             div.innerHTML += `
-                <div class="item-prog">
-                    <span><b>PIN ${p.pin}</b>: ${p.on} a ${p.off}</span>
-                    <i class="fas fa-trash-alt btn-delete" onclick="delProg(${p.id})"></i>
+                <div class="item-prog ${p.enabled ? 'active-prog' : ''}">
+                    <span>Pins: ${p.pins.join(',')} | ${p.on}-${p.off}</span>
+                    <div class="actions">
+                        <i class="fas ${p.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}" onclick="toggleProg(${p.id})" style="color:${p.enabled?'var(--on)':'#555'}"></i>
+                        <i class="fas fa-trash" onclick="delProg(${p.id})" style="color:var(--off)"></i>
+                    </div>
                 </div>`;
         });
-    }
-
-    function sendProgsToArduino() {
-        const msg = new Paho.MQTT.Message(JSON.stringify(programas));
-        msg.destinationName = TOPIC + "/config/progs";
-        msg.retained = true;
-        client.send(msg);
     }
 
     function initChart() {
         const labels = [];
         for(let i=0; i<24; i++) { labels.push(i+":00"); labels.push(i+":30"); }
-        
-        const ctx = document.getElementById('tempChart').getContext('2d');
-        chart = new Chart(ctx, {
+        chart = new Chart(document.getElementById('tempChart'), {
             type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{ label: 'Temp 24h', data: historico, borderColor: '#38bdf8', tension: 0.4, fill: true, backgroundColor: 'rgba(56,189,248,0.1)' }]
-            },
-            options: { scales: { y: { grid: { color: '#2d3748' } } } }
+            data: { labels: labels, datasets: [{ label: 'Temp 24h', data: historico, borderColor: '#38bdf8', tension: 0.4 }] }
         });
     }
 
     client.onMessageArrived = (msg) => {
         if(msg.destinationName.includes("temp")) {
             const t = parseFloat(msg.payloadString);
-            document.getElementById('temp-val').innerText = t + "°C";
-            
+            document.getElementById('temp-val').innerText = t.toFixed(1) + "°C";
             const now = new Date();
             const min = now.getMinutes();
             if(min === 0 || min === 30) {
@@ -203,6 +184,8 @@
         const p = document.getElementById('prog-panel');
         p.style.display = p.style.display === 'block' ? 'none' : 'block';
     }
+
+    document.querySelectorAll('.chip').forEach(c => c.onclick = () => c.classList.toggle('selected'));
 </script>
 </body>
 </html>
