@@ -3,37 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huerto Pro v5</title>
+    <title>Huerto Inteligente v6</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --bg: #0b0c10; --card: #1c252e; --accent: #38bdf8; --on: #22c55e; --off: #ef4444; --auto: #eab308; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #d1d5db; margin: 0; padding: 15px; text-align: center; }
-        .main-temp { font-size: 4rem; font-weight: bold; color: var(--accent); margin: 10px 0; }
-        .panel { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #2d3748; text-align: left; }
-        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 12px; margin-bottom: 8px; border-radius: 6px; }
-        .btn-group button { padding: 10px; border: 1px solid #333; background: #1c252e; color: #666; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #d1d5db; margin: 0; padding: 15px; }
+        
+        /* Encabezado y Temperatura */
+        .temp-card { text-align: center; padding: 20px; background: var(--card); border-radius: 12px; margin-bottom: 15px; border-bottom: 4px solid var(--accent); }
+        .main-temp { font-size: 3.5rem; font-weight: bold; color: var(--accent); }
+
+        /* Paneles y Botones */
+        .panel { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #2d3748; }
+        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 10px; margin-bottom: 8px; border-radius: 6px; }
+        .btn-group button { padding: 8px 12px; border: 1px solid #333; background: #1c252e; color: #666; cursor: pointer; border-radius: 4px; font-weight: bold; transition: 0.3s; }
         button.active { color: white !important; border-color: white; }
         .btn-on.active { background: var(--on); } .btn-off.active { background: var(--off); } .btn-auto.active { background: var(--auto); color: black !important; }
+
+        /* Desplegable de Programación */
+        .collapsible { background: #2d3748; color: var(--accent); cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; outline: none; font-size: 16px; font-weight: bold; border-radius: 8px; display: flex; justify-content: space-between; }
+        .content { padding: 0 15px; display: none; overflow: hidden; background-color: #1c252e; border: 1px solid #2d3748; border-top: none; border-radius: 0 0 8px 8px; margin-bottom: 15px; }
         
-        .multi-select { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
-        .chip { padding: 8px; background: #1c252e; border: 1px solid #333; border-radius: 4px; cursor: pointer; font-size: 0.8rem; flex: 1; text-align: center; }
-        .chip.selected { background: var(--accent); color: black; }
+        /* Selectores de Chips */
+        .selector-label { display: block; margin: 15px 0 5px; font-size: 0.9rem; color: #9ca3af; }
+        .chips-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .chip { padding: 8px 12px; background: #0f171e; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: 0.2s; flex: 1; text-align: center; min-width: 60px; }
+        .chip.selected { background: var(--accent); color: black; border-color: var(--accent); font-weight: bold; }
         
-        #prog-panel { display: none; }
-        .item-prog { background: #0f171e; padding: 12px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #444; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
-        .item-prog.active-prog { border-left-color: var(--on); }
-        .actions i { cursor: pointer; margin-left: 15px; font-size: 1.2rem; }
+        .time-input { background: #0f171e; border: 1px solid #333; color: white; padding: 10px; border-radius: 6px; width: 45%; }
+        .btn-save { width: 100%; padding: 12px; background: var(--on); border: none; border-radius: 6px; color: white; font-weight: bold; margin: 15px 0; cursor: pointer; }
+
+        /* Lista de Programas */
+        .prog-item { background: #0f171e; padding: 12px; margin-bottom: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #444; }
+        .prog-item.enabled { border-left-color: var(--on); }
+        .prog-info b { color: var(--accent); }
     </style>
 </head>
 <body>
 
-    <div class="main-temp" id="temp-val">--°C</div>
+    <div class="temp-card">
+        <div class="main-temp" id="temp-val">--°C</div>
+        <small>TEMPERATURA ACTUAL (LM35)</small>
+    </div>
 
     <div class="panel">
         <div class="device-row" id="row-6">
-            <span><i class="fas fa-faucet"></i> EV1</span>
+            <span><i class="fas fa-faucet"></i> EV1 (Pin 6)</span>
             <div class="btn-group">
                 <button class="btn-off" onclick="changeMode(6, '0')">OFF</button>
                 <button class="btn-auto" onclick="changeMode(6, '2')">AUTO</button>
@@ -41,7 +58,7 @@
             </div>
         </div>
         <div class="device-row" id="row-7">
-            <span><i class="fas fa-faucet"></i> EV2</span>
+            <span><i class="fas fa-faucet"></i> EV2 (Pin 7)</span>
             <div class="btn-group">
                 <button class="btn-off" onclick="changeMode(7, '0')">OFF</button>
                 <button class="btn-auto" onclick="changeMode(7, '2')">AUTO</button>
@@ -49,7 +66,7 @@
             </div>
         </div>
         <div class="device-row" id="row-9">
-            <span><i class="fas fa-seedling"></i> ABNO</span>
+            <span><i class="fas fa-seedling"></i> ABNO (Pin 9)</span>
             <div class="btn-group">
                 <button class="btn-off" onclick="changeMode(9, '0')">OFF</button>
                 <button class="btn-auto" onclick="changeMode(9, '2')">AUTO</button>
@@ -58,22 +75,34 @@
         </div>
     </div>
 
-    <button class="panel" style="width:100%; color:var(--accent); cursor:pointer; font-weight:bold" onclick="toggleProgPanel()">+ GESTIONAR PROGRAMAS</button>
-
-    <div id="prog-panel" class="panel">
-        <div class="multi-select" id="days-picker">
-            <div class="chip" data-val="1">Lu</div><div class="chip" data-val="2">Ma</div><div class="chip" data-val="3">Mi</div>
-            <div class="chip" data-val="4">Ju</div><div class="chip" data-val="5">Vi</div><div class="chip" data-val="6">Sa</div><div class="chip" data-val="0">Do</div>
+    <button class="collapsible" onclick="toggleAccordion()">
+        CONFIGURAR PROGRAMACIÓN <i class="fas fa-chevron-down"></i>
+    </button>
+    <div class="content" id="acc-content">
+        <span class="selector-label">Selecciona Días:</span>
+        <div class="chips-container" id="day-chips">
+            <div class="chip" data-val="1">Lun</div><div class="chip" data-val="2">Mar</div><div class="chip" data-val="3">Mié</div>
+            <div class="chip" data-val="4">Jue</div><div class="chip" data-val="5">Vie</div><div class="chip" data-val="6">Sáb</div><div class="chip" data-val="0">Dom</div>
         </div>
-        <div class="multi-select" id="pins-picker">
+
+        <span class="selector-label">Selecciona Sectores (puedes elegir varios):</span>
+        <div class="chips-container" id="pin-chips">
             <div class="chip" data-val="6">EV1</div><div class="chip" data-val="7">EV2</div><div class="chip" data-val="9">ABNO</div>
         </div>
-        <input type="time" id="t-on" style="padding:8px;"> <input type="time" id="t-off" style="padding:8px;">
-        <button onclick="saveNewProg()" style="width:100%; background:var(--accent); border:none; padding:12px; font-weight:bold; margin-top:10px;">AÑADIR</button>
-        <div id="lista-progs" style="margin-top:15px;"></div>
+
+        <div style="display: flex; justify-content: space-between;">
+            <input type="time" id="t-on" class="time-input">
+            <input type="time" id="t-off" class="time-input">
+        </div>
+
+        <button class="btn-save" onclick="saveNewProg()">GUARDAR PROGRAMA</button>
+
+        <div id="lista-progs"></div>
     </div>
 
-    <div class="panel"><canvas id="tempChart"></canvas></div>
+    <div class="panel">
+        <canvas id="tempChart"></canvas>
+    </div>
 
 <script>
     const TOPIC = "CVH_HUERTO";
@@ -81,14 +110,22 @@
     let estados = JSON.parse(localStorage.getItem('h_states')) || { "6":"0", "7":"0", "9":"0" };
     let historico = JSON.parse(localStorage.getItem('h_chart')) || Array(48).fill(null);
 
-    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "u_" + Math.random());
+    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "user_" + Math.random());
 
     client.connect({ useSSL: true, onSuccess: () => {
         client.subscribe(TOPIC + "/telemetria/temp");
-        updateButtonsUI();
-        renderProgs();
-        initChart();
+        syncAll();
     }});
+
+    // Función para manejar los chips
+    document.querySelectorAll('.chip').forEach(chip => {
+        chip.addEventListener('click', () => chip.classList.toggle('selected'));
+    });
+
+    function toggleAccordion() {
+        const content = document.getElementById("acc-content");
+        content.style.display = content.style.display === "block" ? "none" : "block";
+    }
 
     function changeMode(pin, val) {
         estados[pin] = val;
@@ -105,36 +142,41 @@
             const btns = document.getElementById(`row-${pin}`).querySelectorAll('button');
             btns.forEach(b => b.classList.remove('active'));
             const s = estados[pin];
-            if(s==="0") btns[0].classList.add('active'); else if(s==="2") btns[1].classList.add('active'); else if(s==="1") btns[2].classList.add('active');
+            if(s==="0") btns[0].classList.add('active'); 
+            else if(s==="2") btns[1].classList.add('active'); 
+            else if(s==="1") btns[2].classList.add('active');
         });
     }
 
     function saveNewProg() {
-        const days = Array.from(document.querySelectorAll('#days-picker .selected')).map(c => parseInt(c.dataset.val));
-        const pins = Array.from(document.querySelectorAll('#pins-picker .selected')).map(c => parseInt(c.dataset.val));
+        const days = Array.from(document.querySelectorAll('#day-chips .selected')).map(c => parseInt(c.dataset.val));
+        const pins = Array.from(document.querySelectorAll('#pin-chips .selected')).map(c => parseInt(c.dataset.val));
         const on = document.getElementById('t-on').value;
         const off = document.getElementById('t-off').value;
 
-        if(!days.length || !pins.length || !on || !off) return alert("Completa todos los campos");
+        if(!days.length || !pins.length || !on || !off) return alert("Faltan datos");
 
         programas.push({ id: Date.now(), days, pins, on, off, enabled: true });
-        sync();
+        syncAll();
+        // Limpiar selección
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
     }
 
-    function toggleProg(id) {
+    function toggleEnable(id) {
         const p = programas.find(x => x.id === id);
         p.enabled = !p.enabled;
-        sync();
+        syncAll();
     }
 
     function delProg(id) {
         programas = programas.filter(x => x.id !== id);
-        sync();
+        syncAll();
     }
 
-    function sync() {
+    function syncAll() {
         localStorage.setItem('h_progs', JSON.stringify(programas));
         renderProgs();
+        updateButtonsUI();
         const msg = new Paho.MQTT.Message(JSON.stringify(programas));
         msg.destinationName = TOPIC + "/config/progs";
         msg.retained = true;
@@ -146,46 +188,40 @@
         div.innerHTML = "";
         programas.forEach(p => {
             div.innerHTML += `
-                <div class="item-prog ${p.enabled ? 'active-prog' : ''}">
-                    <span>Pins: ${p.pins.join(',')} | ${p.on}-${p.off}</span>
-                    <div class="actions">
-                        <i class="fas ${p.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}" onclick="toggleProg(${p.id})" style="color:${p.enabled?'var(--on)':'#555'}"></i>
-                        <i class="fas fa-trash" onclick="delProg(${p.id})" style="color:var(--off)"></i>
+                <div class="prog-item ${p.enabled ? 'enabled' : ''}">
+                    <div class="prog-info">
+                        <b>Pines: ${p.pins.join(', ')}</b><br>
+                        <small>${p.on} - ${p.off} (Días: ${p.days.join(',')})</small>
+                    </div>
+                    <div>
+                        <i class="fas ${p.enabled ? 'fa-toggle-on' : 'fa-toggle-off'}" 
+                           onclick="toggleEnable(${p.id})" 
+                           style="color:${p.enabled?'var(--on)':'#555'}; cursor:pointer; font-size:1.5rem; margin-right:15px;"></i>
+                        <i class="fas fa-trash-alt" onclick="delProg(${p.id})" style="color:var(--off); cursor:pointer;"></i>
                     </div>
                 </div>`;
         });
     }
 
+    // Lógica de Gráfica (Igual que antes)
     function initChart() {
-        const labels = [];
-        for(let i=0; i<24; i++) { labels.push(i+":00"); labels.push(i+":30"); }
-        chart = new Chart(document.getElementById('tempChart'), {
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        chart = new Chart(ctx, {
             type: 'line',
-            data: { labels: labels, datasets: [{ label: 'Temp 24h', data: historico, borderColor: '#38bdf8', tension: 0.4 }] }
+            data: {
+                labels: Array.from({length: 48}, (_, i) => Math.floor(i/2) + (i%2?':30':':00')),
+                datasets: [{ label: 'Temp °C', data: historico, borderColor: '#38bdf8', tension: 0.3 }]
+            }
         });
     }
+    initChart();
 
     client.onMessageArrived = (msg) => {
         if(msg.destinationName.includes("temp")) {
             const t = parseFloat(msg.payloadString);
             document.getElementById('temp-val').innerText = t.toFixed(1) + "°C";
-            const now = new Date();
-            const min = now.getMinutes();
-            if(min === 0 || min === 30) {
-                const idx = now.getHours() * 2 + (min === 30 ? 1 : 0);
-                historico[idx] = t;
-                localStorage.setItem('h_chart', JSON.stringify(historico));
-                chart.update();
-            }
         }
     };
-
-    function toggleProgPanel() {
-        const p = document.getElementById('prog-panel');
-        p.style.display = p.style.display === 'block' ? 'none' : 'block';
-    }
-
-    document.querySelectorAll('.chip').forEach(c => c.onclick = () => c.classList.toggle('selected'));
 </script>
 </body>
 </html>
