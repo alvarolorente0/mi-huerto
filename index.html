@@ -3,81 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISTEMA DE RIEGO PROFESIONAL - MKR1000</title>
+    <title>CONTROL DE RIEGO - MKR1000</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --led-on: #00ffaa; --red: #ff4444; }
+        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --led: #00ffaa; --red: #ff4444; }
         body { background: var(--bg); color: #eee; font-family: 'Segoe UI', sans-serif; padding: 15px; max-width: 800px; margin: auto; }
         
-        /* Temperatura */
-        .hero-temp { text-align: center; padding: 25px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; margin-bottom: 20px; }
-        .temp-val { font-size: 5rem; font-weight: 900; color: var(--neon); margin: 10px 0; }
+        /* Dashboard */
+        .hero-temp { text-align: center; padding: 20px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; margin-bottom: 20px; }
+        .temp-val { font-size: 4.5rem; font-weight: 900; color: var(--neon); margin: 5px 0; }
         #mqtt-status { font-size: 0.7rem; font-weight: bold; }
 
-        /* Tarjetas */
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
-        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; border-bottom: 1px solid #222; padding-bottom: 10px; }
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin: 0 0 15px 0; border-bottom: 1px solid #222; padding-bottom: 10px; }
 
-        /* Controles Válvulas */
-        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        /* Válvulas */
+        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .ev-item { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: center; }
         .status-led { width: 10px; height: 10px; border-radius: 50%; background: #222; margin: 0 auto 10px; }
-        .status-led.on { background: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
+        .status-led.on { background: var(--led); box-shadow: 0 0 10px var(--led); }
         
         .btn-group { display: flex; gap: 4px; margin-top: 12px; }
-        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
-        .btn-m.active-on { border-color: var(--led-on); color: var(--led-on); background: rgba(0,255,170,0.1); }
+        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.65rem; font-weight: bold; transition: 0.2s; }
+        .btn-m.active-on { border-color: var(--led); color: var(--led); background: rgba(0,255,170,0.1); }
         .btn-m.active-off { border-color: var(--red); color: var(--red); background: rgba(255,68,68,0.1); }
         .btn-m.active-auto { border-color: var(--neon); color: var(--neon); background: rgba(0,212,255,0.1); }
 
-        /* Acordeón de Programas */
-        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; border: 1px solid var(--neon); color: var(--neon); font-weight: bold; border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .acc-body { display: none; padding: 15px; background: #0c0c0c; border: 1px solid #222; border-top: none; border-radius: 0 0 10px 10px; }
+        /* Acordeón */
+        .acc-container { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; color: var(--neon); font-weight: bold; border: none; cursor: pointer; display: flex; justify-content: space-between; }
+        .acc-body { display: none; padding: 15px; background: #0c0c0c; border-top: 1px solid #222; }
         .acc-body.open { display: block; }
         
         .prog-card { background: #151515; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--neon); display: flex; justify-content: space-between; align-items: center; }
-        .prog-card.inactive { opacity: 0.5; border-left-color: #444; }
+        .prog-card.inactive { opacity: 0.4; }
 
-        /* Formulario Nuevo Programa */
-        .form-new { display: grid; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; }
-        .day-selector { display: flex; justify-content: space-between; gap: 2px; }
-        .day-selector label { font-size: 0.6rem; text-align: center; flex: 1; }
-        input, select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; }
-        .btn-add { background: var(--neon); color: #000; border: none; padding: 10px; font-weight: bold; border-radius: 5px; cursor: pointer; }
+        /* Formulario */
+        .form-new { display: grid; gap: 12px; margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; border: 1px dashed #333; }
+        .day-selector { display: flex; justify-content: space-between; padding: 5px; }
+        .day-selector label { font-size: 0.65rem; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; cursor: pointer; }
+        input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; width: 100%; }
+        .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="hero-temp">
-        <div style="font-size: 0.7rem; letter-spacing: 3px; color: #555;">TEMPERATURA ACTUAL</div>
+        <div style="font-size: 0.6rem; letter-spacing: 2px; color: #555;">SISTEMA EN LÍNEA</div>
         <div class="temp-val"><span id="valTemp">--.-</span>°C</div>
-        <div id="mqtt-status" style="color: var(--red);">BROKER DESCONECTADO</div>
+        <div id="mqtt-status" style="color: var(--red);">CONECTANDO AL BROKER...</div>
     </div>
 
     <div class="card">
-        <h2>Control Manual (Pines 6, 7, 9)</h2>
+        <h2>Control Manual</h2>
         <div class="ev-grid" id="ui-valvulas"></div>
     </div>
 
-    <div style="margin-bottom: 20px;">
-        <div class="acc-header" onclick="document.getElementById('acc-body').classList.toggle('open')">
-            <span>📅 PROGRAMAS SEMANALES</span>
-            <span id="count-activos" style="font-size: 0.7rem;">0 ACTIVOS</span>
-        </div>
+    <div class="acc-container">
+        <button class="acc-header" onclick="document.getElementById('acc-body').classList.toggle('open')">
+            <span>📅 PROGRAMACIÓN SEMANAL</span>
+            <span id="count-activos" style="font-size: 0.7rem; background: var(--neon); color: #000; padding: 2px 8px; border-radius: 10px;">0</span>
+        </button>
         <div class="acc-body" id="acc-body">
             <div id="lista-progs"></div>
             
             <div class="form-new">
+                <h3 style="font-size: 0.7rem; color: var(--neon); margin: 0;">NUEVO PROGRAMA:</h3>
                 <div style="display:flex; gap:10px;">
-                    <input type="time" id="in-ini" value="08:00" style="flex:1">
-                    <input type="time" id="in-fin" value="08:30" style="flex:1">
+                    <div style="flex:1"><small>Hora Inicio:</small><input type="time" id="in-ini" value="08:00"></div>
+                    <div style="flex:1"><small>Hora Fin:</small><input type="time" id="in-fin" value="08:30"></div>
                 </div>
-                <select id="in-pin">
-                    <option value="6">PIN 6</option>
-                    <option value="7">PIN 7</option>
-                    <option value="9">PIN 9</option>
-                </select>
+                <div>
+                    <small>Válvula:</small>
+                    <select id="in-pin">
+                        <option value="6">PIN 6</option>
+                        <option value="7">PIN 7</option>
+                        <option value="9">PIN 9</option>
+                    </select>
+                </div>
                 <div class="day-selector">
                     <label><input type="checkbox" value="1" checked>L</label>
                     <label><input type="checkbox" value="2" checked>M</label>
@@ -87,35 +91,37 @@
                     <label><input type="checkbox" value="6">S</label>
                     <label><input type="checkbox" value="0">D</label>
                 </div>
-                <button class="btn-add" onclick="crearProg()">AÑADIR PROGRAMA</button>
+                <button class="btn-add" onclick="crearProg()">GUARDAR PROGRAMACIÓN</button>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <canvas id="tempChart" style="max-height: 120px;"></canvas>
+        <canvas id="tempChart" style="max-height: 100px;"></canvas>
     </div>
 
 <script>
-    // --- CONFIGURACIÓN MQTT ---
+    // --- DATOS DE CONEXIÓN ACTUALIZADOS ---
     const broker = 'wss://1b344346177c415c8fcfd49bcb096fdf.s1.eu.hivemq.cloud:8884/mqtt'; 
-    const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
+    const client = mqtt.connect(broker, { 
+        username: 'huertosss', 
+        password: 'blancaym15',
+        clientId: 'web_client_' + Math.random().toString(16).substr(2, 8) 
+    });
 
-    let dataProgs = JSON.parse(localStorage.getItem('progs_riego_vFINAL')) || [];
+    let dataProgs = JSON.parse(localStorage.getItem('riego_v12')) || [];
     let modes = { 6: 2, 7: 2, 9: 2 }; 
     let real = { 6: 0, 7: 0, 9: 0 };
     const diasStr = ["D", "L", "M", "X", "J", "V", "S"];
 
-    // --- LÓGICA DE UI ---
     function render() {
-        // Válvulas
         const vBox = document.getElementById('ui-valvulas');
         vBox.innerHTML = '';
         [6, 7, 9].forEach(p => {
             vBox.innerHTML += `
                 <div class="ev-item">
                     <div class="status-led ${real[p]?'on':''}"></div>
-                    <div style="font-weight:bold; font-size:0.8rem;">VÁLVULA ${p}</div>
+                    <div style="font-weight:bold; font-size:0.8rem;">PIN ${p}</div>
                     <div class="btn-group">
                         <button class="btn-m ${modes[p]===1?'active-on':''}" onclick="setM(${p},1)">ON</button>
                         <button class="btn-m ${modes[p]===2?'active-auto':''}" onclick="setM(${p},2)">AUTO</button>
@@ -124,26 +130,24 @@
                 </div>`;
         });
 
-        // Programas
         const pBox = document.getElementById('lista-progs');
         pBox.innerHTML = '';
         dataProgs.forEach((p, i) => {
             pBox.innerHTML += `
                 <div class="prog-card ${!p.activo?'inactive':''}">
-                    <div style="font-size:0.8rem">
-                        <b>${p.inicio}-${p.fin}</b> | PIN ${p.pin}<br>
-                        <small style="color:#666">${p.dias.map(d=>diasStr[d]).join(' ')}</small>
+                    <div style="font-size:0.75rem">
+                        <b style="color:var(--neon)">${p.inicio} - ${p.fin}</b> | PIN ${p.pin}<br>
+                        <small>${p.dias.map(d=>diasStr[d]).join(' ')}</small>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
-                        <button onclick="delP(${i})" style="background:none; border:none; color:var(--red); cursor:pointer;">✖</button>
+                        <button onclick="delP(${i})" style="background:none; border:none; color:var(--red); cursor:pointer; font-weight:bold;">✖</button>
                     </div>
                 </div>`;
         });
-        document.getElementById('count-activos').innerText = dataProgs.filter(x=>x.activo).length + " ACTIVOS";
+        document.getElementById('count-activos').innerText = dataProgs.filter(x=>x.activo).length;
     }
 
-    // --- ACCIONES ---
     function setM(pin, val) {
         modes[pin] = val;
         client.publish('jardin/manual', JSON.stringify({ pin, val }));
@@ -151,15 +155,15 @@
     }
 
     function crearProg() {
-        const p = {
+        const dias = Array.from(document.querySelectorAll('.day-selector input:checked')).map(c => parseInt(c.value));
+        if(dias.length === 0) return alert("Selecciona días");
+        dataProgs.push({
             inicio: document.getElementById('in-ini').value,
             fin: document.getElementById('in-fin').value,
             pin: parseInt(document.getElementById('in-pin').value),
-            dias: Array.from(document.querySelectorAll('.day-selector input:checked')).map(c => parseInt(c.value)),
+            dias: dias,
             activo: true
-        };
-        if(p.dias.length === 0) return alert("Elige algún día");
-        dataProgs.push(p);
+        });
         sync();
     }
 
@@ -167,32 +171,26 @@
     function delP(i) { dataProgs.splice(i, 1); sync(); }
 
     function sync() {
-        localStorage.setItem('progs_riego_vFINAL', JSON.stringify(dataProgs));
+        localStorage.setItem('riego_v12', JSON.stringify(dataProgs));
         render();
-        // FILTRO CRÍTICO: Solo enviamos los programas activos al Arduino
-        const soloActivos = dataProgs.filter(p => p.activo === true);
-        client.publish('jardin/config', JSON.stringify(soloActivos), { retain: true });
+        // Solo enviamos los programas ACTIVOS al Arduino
+        const activos = dataProgs.filter(p => p.activo === true);
+        if(client.connected) client.publish('jardin/config', JSON.stringify(activos), { retain: true });
     }
 
-    // --- MQTT EVENTOS ---
     client.on('connect', () => {
-        document.getElementById('mqtt-status').innerText = "SISTEMA EN LÍNEA";
-        document.getElementById('mqtt-status').style.color = "var(--led-on)";
+        document.getElementById('mqtt-status').innerText = "CONECTADO A HIVEMQ";
+        document.getElementById('mqtt-status').style.color = "var(--led)";
         client.subscribe(['jardin/estado', 'jardin/temp_log']);
-        sync(); // Sincroniza programas activos al conectar
+        sync();
     });
 
     client.on('message', (topic, msg) => {
-        if (topic === 'jardin/estado') {
-            real = JSON.parse(msg.toString());
-            render();
-        } else if (topic === 'jardin/temp_log') {
-            document.getElementById('valTemp').innerText = msg.toString();
-            updateChart(msg.toString());
-        }
+        if (topic === 'jardin/estado') { real = JSON.parse(msg.toString()); render(); }
+        else if (topic === 'jardin/temp_log') { document.getElementById('valTemp').innerText = msg.toString(); updateChart(msg.toString()); }
     });
 
-    // --- GRÁFICA ---
+    // Gráfica
     const ctx = document.getElementById('tempChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
