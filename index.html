@@ -1,224 +1,108 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huerto Smart Pro v6</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <title>Smart Irrigation MKR1000</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --bg: #0b0c10; --card: #1c252e; --accent: #38bdf8; --on: #22c55e; --off: #ef4444; --auto: #eab308; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #d1d5db; margin: 0; padding: 15px; }
-        .temp-card { text-align: center; padding: 20px; background: var(--card); border-radius: 12px; margin-bottom: 15px; border-bottom: 4px solid var(--accent); }
-        .main-temp { font-size: 3.5rem; font-weight: bold; color: var(--accent); }
-        
-        .panel { background: var(--card); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #2d3748; }
-        .device-row { display: flex; align-items: center; justify-content: space-between; background: #0f171e; padding: 10px; margin-bottom: 8px; border-radius: 6px; }
-        
-        /* Botones de Modo */
-        .btn-group button { padding: 8px 12px; border: 1px solid #333; background: #1c252e; color: #666; cursor: pointer; border-radius: 4px; font-weight: bold; }
-        button.active { color: white !important; border-color: white; }
-        .btn-on.active { background: var(--on); } .btn-off.active { background: var(--off); } .btn-auto.active { background: var(--auto); color: black !important; }
-
-        /* Acordeón */
-        .collapsible { background: #2d3748; color: var(--accent); cursor: pointer; padding: 15px; width: 100%; border: none; text-align: left; font-size: 16px; font-weight: bold; border-radius: 8px; display: flex; justify-content: space-between; }
-        .content { padding: 0 15px; display: none; background-color: #1c252e; border: 1px solid #2d3748; border-top: none; border-radius: 0 0 8px 8px; margin-bottom: 15px; }
-        
-        /* Chips y Selectores */
-        .chips-container { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 20px; }
-        .chip { padding: 8px; background: #0f171e; border: 1px solid #333; border-radius: 6px; cursor: pointer; flex: 1; text-align: center; min-width: 50px; font-size: 0.8rem; }
-        .chip.selected { background: var(--accent); color: black; font-weight: bold; }
-        .time-input { background: #0f171e; border: 1px solid #333; color: white; padding: 10px; border-radius: 6px; width: 45%; }
-        .btn-save { width: 100%; padding: 12px; background: var(--on); border: none; border-radius: 6px; color: white; font-weight: bold; margin: 15px 0; cursor: pointer; }
-
-        /* Lista de Programas */
-        .prog-item { background: #0f171e; padding: 12px; margin-bottom: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid #444; }
-        .prog-item.enabled { border-left-color: var(--on); }
-        .prog-actions i { cursor: pointer; font-size: 1.3rem; margin-left: 15px; }
+        body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn { padding: 10px; cursor: pointer; border: none; border-radius: 4px; }
+        .on { background: #28a745; color: white; }
+        .off { background: #dc3545; color: white; }
     </style>
 </head>
 <body>
 
-    <div class="temp-card">
-        <div class="main-temp" id="temp-val">--°C</div>
-        <small>TEMPERATURA AMBIENTE (A1)</small>
+    <div class="card">
+        <h2>Control Manual</h2>
+        V6: <button class="btn off" onclick="sendManual(6, true)">ON</button> <button class="btn off" onclick="sendManual(6, false)">OFF</button>
+        V7: <button class="btn off" onclick="sendManual(7, true)">ON</button> <button class="btn off" onclick="sendManual(7, false)">OFF</button>
+        V9: <button class="btn off" onclick="sendManual(9, true)">ON</button> <button class="btn off" onclick="sendManual(9, false)">OFF</button>
     </div>
 
-    <div class="panel">
-        <div class="device-row" id="row-6">
-            <span><i class="fas fa-faucet"></i> EV1</span>
-            <div class="btn-group">
-                <button class="btn-off" onclick="changeMode(6, '0')">OFF</button>
-                <button class="btn-auto" onclick="changeMode(6, '2')">AUTO</button>
-                <button class="btn-on" onclick="changeMode(6, '1')">ON</button>
-            </div>
-        </div>
-        <div class="device-row" id="row-7">
-            <span><i class="fas fa-faucet"></i> EV2</span>
-            <div class="btn-group">
-                <button class="btn-off" onclick="changeMode(7, '0')">OFF</button>
-                <button class="btn-auto" onclick="changeMode(7, '2')">AUTO</button>
-                <button class="btn-on" onclick="changeMode(7, '1')">ON</button>
-            </div>
-        </div>
-        <div class="device-row" id="row-9">
-            <span><i class="fas fa-seedling"></i> ABONO</span>
-            <div class="btn-group">
-                <button class="btn-off" onclick="changeMode(9, '0')">OFF</button>
-                <button class="btn-auto" onclick="changeMode(9, '2')">AUTO</button>
-                <button class="btn-on" onclick="changeMode(9, '1')">ON</button>
-            </div>
-        </div>
+    <div class="card">
+        <h2>Programación de Riego</h2>
+        <div id="listaProgramas"></div>
+        <button class="btn on" onclick="crearPrograma()">+ Nuevo Programa</button>
     </div>
 
-    <button class="collapsible" onclick="toggleAccordion()">
-        PROGRAMACIÓN HORARIA <i class="fas fa-chevron-down"></i>
-    </button>
-    <div class="content" id="acc-content">
-        <p style="font-size:0.8rem; color:var(--accent);">1. Elige Días:</p>
-        <div class="chips-container" id="day-chips">
-            <div class="chip" data-val="1">Lu</div><div class="chip" data-val="2">Ma</div><div class="chip" data-val="3">Mi</div>
-            <div class="chip" data-val="4">Ju</div><div class="chip" data-val="5">Vi</div><div class="chip" data-val="6">Sa</div><div class="chip" data-val="0">Do</div>
-        </div>
-        <p style="font-size:0.8rem; color:var(--accent);">2. Elige Sectores:</p>
-        <div class="chips-container" id="pin-chips">
-            <div class="chip" data-val="6">EV1</div><div class="chip" data-val="7">EV2</div><div class="chip" data-val="9">ABONO</div>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-            <input type="time" id="t-on" class="time-input">
-            <input type="time" id="t-off" class="time-input">
-        </div>
-        <button class="btn-save" onclick="saveNewProg()">CREAR PROGRAMA</button>
-        <div id="lista-progs"></div>
+    <div class="card">
+        <canvas id="tempChart"></canvas>
     </div>
-
-    <div class="panel"><canvas id="tempChart"></canvas></div>
 
 <script>
-    const TOPIC = "CVH_HUERTO";
-    let chart;
-    let programas = JSON.parse(localStorage.getItem('h_progs')) || [];
-    let estados = JSON.parse(localStorage.getItem('h_states')) || { "6":"0", "7":"0", "9":"0" };
-    let historico = JSON.parse(localStorage.getItem('h_chart')) || Array(48).fill(null);
+    // Configuración HiveMQ (Websocket)
+    const client = mqtt.connect('wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt', {
+        username: 'TU_USER',
+        password: 'TU_PASSWORD'
+    });
 
-    const client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", "u_" + Math.random());
+    let programas = JSON.parse(localStorage.getItem('programas')) || [];
+    let historyTemp = JSON.parse(localStorage.getItem('historyTemp')) || [];
 
-    client.connect({ useSSL: true, onSuccess: () => {
-        client.subscribe(TOPIC + "/telemetria/temp");
-        syncAll();
-    }});
+    client.on('connect', () => {
+        client.subscribe('jardin/temp_log');
+        // Sincronizar hora con Arduino
+        client.publish('jardin/config', JSON.stringify({time: Math.floor(Date.now()/1000)}));
+    });
 
-    function toggleAccordion() {
-        const c = document.getElementById("acc-content");
-        c.style.display = (c.style.display === "block") ? "none" : "block";
-    }
-
-    document.querySelectorAll('.chip').forEach(c => c.onclick = () => c.classList.toggle('selected'));
-
-    function changeMode(pin, val) {
-        estados[pin] = val;
-        localStorage.setItem('h_states', JSON.stringify(estados));
-        const msg = new Paho.MQTT.Message(val);
-        msg.destinationName = `${TOPIC}/control/${pin}`;
-        msg.retained = true;
-        client.send(msg);
-        updateButtonsUI();
-    }
-
-    function updateButtonsUI() {
-        [6, 7, 9].forEach(pin => {
-            const row = document.getElementById(`row-${pin}`);
-            if(!row) return;
-            const btns = row.querySelectorAll('button');
-            btns.forEach(b => b.classList.remove('active'));
-            const s = estados[pin];
-            if(s==="0") btns[0].classList.add('active');
-            else if(s==="2") btns[1].classList.add('active');
-            else if(s==="1") btns[2].classList.add('active');
-        });
-    }
-
-    function saveNewProg() {
-        const days = Array.from(document.querySelectorAll('#day-chips .selected')).map(c => parseInt(c.dataset.val));
-        const pins = Array.from(document.querySelectorAll('#pin-chips .selected')).map(c => parseInt(c.dataset.val));
-        const on = document.getElementById('t-on').value;
-        const off = document.getElementById('t-off').value;
-
-        if(!days.length || !pins.length || !on || !off) return alert("Faltan datos");
-
-        programas.push({ id: Date.now(), days, pins, on, off, enabled: true });
-        syncAll();
-        document.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
-    }
-
-    function toggleEnable(id) {
-        const p = programas.find(x => x.id === id);
-        p.enabled = !p.enabled;
-        syncAll();
-    }
-
-    function delProg(id) {
-        programas = programas.filter(x => x.id !== id);
-        syncAll();
-    }
-
-    function syncAll() {
-        localStorage.setItem('h_progs', JSON.stringify(programas));
-        renderProgs();
-        updateButtonsUI();
-        const msg = new Paho.MQTT.Message(JSON.stringify(programas));
-        msg.destinationName = TOPIC + "/config/progs";
-        msg.retained = true;
-        client.send(msg);
-    }
-
-    function renderProgs() {
-        const div = document.getElementById('lista-progs');
-        div.innerHTML = "";
-        programas.forEach(p => {
-            div.innerHTML += `
-                <div class="prog-item ${p.enabled ? 'enabled' : ''}">
-                    <div>
-                        <b>Pins: ${p.pins.join(', ')}</b><br>
-                        <small>${p.on} - ${p.off} | Días: ${p.days.join(',')}</small>
-                    </div>
-                    <div class="prog-actions">
-                        <i class="fas ${p.enabled?'fa-toggle-on':'fa-toggle-off'}" onclick="toggleEnable(${p.id})" style="color:${p.enabled?'var(--on)':'#555'}"></i>
-                        <i class="fas fa-trash-alt" onclick="delProg(${p.id})" style="color:var(--off)"></i>
-                    </div>
-                </div>`;
-        });
-    }
-
-    function initChart() {
-        const ctx = document.getElementById('tempChart');
-        chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 48}, (_, i) => Math.floor(i/2) + (i%2?':30':':00')),
-                datasets: [{ label: 'Temp °C', data: historico, borderColor: '#38bdf8', tension: 0.3, backgroundColor: 'rgba(56,189,248,0.1)', fill: true }]
-            },
-            options: { scales: { y: { beginAtZero: false } } }
-        });
-    }
-
-    client.onMessageArrived = (msg) => {
-        if(msg.destinationName.includes("temp")) {
-            const t = parseFloat(msg.payloadString);
-            document.getElementById('temp-val').innerText = t.toFixed(1) + "°C";
-            
-            const now = new Date();
-            const min = now.getMinutes();
-            if(min === 0 || min === 30) {
-                const idx = now.getHours() * 2 + (min === 30 ? 1 : 0);
-                historico[idx] = t;
-                localStorage.setItem('h_chart', JSON.stringify(historico));
-                chart.update();
-            }
+    client.on('message', (topic, message) => {
+        if(topic === 'jardin/temp_log') {
+            updateChart(parseFloat(message.toString()));
         }
-    };
-    initChart();
+    });
+
+    function sendManual(pin, state) {
+        const cmd = {}; cmd[pin] = state;
+        client.publish('jardin/manual', JSON.stringify(cmd));
+    }
+
+    function crearPrograma() {
+        const p = { slot: programas.length, h: 12, m: 0, v6: true, v7: false, v9: false, active: true };
+        programas.push(p);
+        save();
+    }
+
+    function save() {
+        localStorage.setItem('programas', JSON.stringify(programas));
+        render();
+        // Enviar al Arduino cada programa
+        programas.forEach(p => client.publish('jardin/config', JSON.stringify(p)));
+    }
+
+    function render() {
+        const div = document.getElementById('listaProgramas');
+        div.innerHTML = programas.map((p, i) => `
+            <div>
+                Prog ${i}: <input type="time" value="${p.h}:${p.m}" onchange="programas[${i}].h=this.value.split(':')[0]; save()">
+                Activo: <input type="checkbox" ${p.active?'checked':''} onchange="programas[${i}].active=this.checked; save()">
+                <button onclick="programas.splice(${i},1); save()">Eliminar</button>
+            </div>
+        `).join('');
+    }
+
+    // Gráfica Chart.js
+    const ctx = document.getElementById('tempChart');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: historyTemp.map(d => d.t),
+            datasets: [{ label: 'Temp últimas 24h', data: historyTemp.map(d => d.v), borderColor: '#2196F3' }]
+        }
+    });
+
+    function updateChart(val) {
+        const now = new Date().toLocaleTimeString();
+        historyTemp.push({t: now, v: val});
+        if(historyTemp.length > 48) historyTemp.shift(); // 24h / 30min = 48 puntos
+        localStorage.setItem('historyTemp', JSON.stringify(historyTemp));
+        chart.data.labels = historyTemp.map(d => d.t);
+        chart.data.datasets[0].data = historyTemp.map(d => d.v);
+        chart.update();
+    }
+
+    render();
 </script>
 </body>
 </html>
