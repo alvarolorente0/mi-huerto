@@ -10,105 +10,210 @@
         :root { --neon: #00d4ff; --bg: #050505; --card: #0f0f0f; }
         body { 
             background-color: var(--bg); color: var(--neon); 
-            font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 900px; margin: auto; 
+            font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; 
         }
         
-        /* Temperatura Hero */
-        .temp-display {
-            text-align: center; padding: 40px; margin-bottom: 25px;
-            background: linear-gradient(145deg, #0a0a0a, #151515);
-            border: 3px solid var(--neon); border-radius: 20px;
-            box-shadow: 0 0 30px rgba(0, 212, 255, 0.15);
+        /* Estética Hero */
+        .hero-temp {
+            text-align: center; padding: 30px; margin-bottom: 20px;
+            background: radial-gradient(circle, #101010 0%, #050505 100%);
+            border: 2px solid var(--neon); border-radius: 20px;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
         }
-        .temp-val { font-size: 5rem; font-weight: 800; text-shadow: 0 0 20px var(--neon); }
-        .temp-unit { font-size: 2rem; vertical-align: super; }
+        .temp-val { font-size: 5.5rem; font-weight: 900; line-height: 1; margin: 10px 0; }
+        .temp-label { font-size: 0.7rem; letter-spacing: 4px; color: #444; }
 
-        .card { 
-            background: var(--card); border: 1px solid rgba(0, 212, 255, 0.3); 
-            border-radius: 12px; padding: 20px; margin-bottom: 25px; 
+        /* Notificación AJAX Silenciosa */
+        #ajax-status { 
+            position: fixed; bottom: 10px; right: 10px; font-size: 0.6rem; 
+            color: #444; transition: 0.5s; 
         }
-        h2 { border-bottom: 1px solid var(--neon); padding-bottom: 10px; margin-top: 0; font-size: 1rem; letter-spacing: 2px; }
+
+        .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #555; text-transform: uppercase; }
 
         /* Controles Manuales */
-        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
-        .ev-item { background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; }
-        
-        /* Botones y Selectores */
-        .group-btn { display: flex; justify-content: center; gap: 5px; margin-top: 10px; }
+        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .ev-item { background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; text-align: center; }
+        .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
         .btn { 
-            padding: 8px 12px; cursor: pointer; background: transparent; 
-            border: 1px solid var(--neon); color: var(--neon); border-radius: 4px; transition: 0.3s;
+            padding: 6px 12px; cursor: pointer; background: #000; 
+            border: 1px solid #333; color: #777; border-radius: 4px; transition: 0.2s; font-size: 0.8rem;
         }
-        .btn.active { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
-        .btn-add { width: 100%; padding: 12px; margin-top: 10px; font-weight: bold; border-style: dashed; }
+        .btn.active { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 10px rgba(0, 212, 255, 0.2); }
 
-        /* Desplegable de Programación */
-        details { background: #111; border: 1px solid #333; border-radius: 8px; margin-bottom: 10px; }
-        summary { padding: 15px; cursor: pointer; font-weight: bold; outline: none; }
-        .prog-content { padding: 15px; border-top: 1px solid #333; display: grid; gap: 15px; }
-        
-        .days-selector label { margin-right: 8px; font-size: 0.8rem; }
-        .valve-selector label { margin-right: 15px; color: #fff; }
-        input[type="time"] { background: #222; border: 1px solid var(--neon); color: var(--neon); padding: 5px; border-radius: 4px; }
+        /* Acordeón */
+        .acordeon-main { border: 1px solid var(--neon); border-radius: 10px; overflow: hidden; }
+        .acordeon-header { 
+            background: #0a0a0a; padding: 15px; cursor: pointer; 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+        .acordeon-content { display: none; padding: 15px; background: #080808; border-top: 1px solid #222; }
+        .acordeon-main.open .acordeon-content { display: block; }
+
+        .prog-row { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid var(--neon); }
+        input[type="time"] { background: #000; border: 1px solid #444; color: var(--neon); padding: 5px; border-radius: 4px; width: 85%; }
+        .selector-box { font-size: 0.75rem; margin-top: 8px; color: #aaa; }
     </style>
 </head>
 <body>
 
-    <div class="temp-display">
-        <h2>TEMPERATURA ACTUAL</h2>
-        <div class="temp-val"><span id="bigTemp">--.-</span><span class="temp-unit">°C</span></div>
+    <div id="ajax-status">NUBE SINCRONIZADA</div>
+
+    <div class="hero-temp">
+        <div class="temp-label">SISTEMA INTELIGENTE</div>
+        <div class="temp-val"><span id="bigTemp">--.-</span>°</div>
+        <div id="status-mqtt" style="font-size: 0.6rem; color: #ff4444;">BROKER DESCONECTADO</div>
     </div>
 
     <div class="card">
-        <h2>CONTROL MANUAL (EV)</h2>
-        <div class="ev-grid">
-            <div class="ev-item">
-                <div>EV 1 (PIN 6)</div>
-                <div class="group-btn" id="ctrl-6">
-                    <button class="btn" onclick="sendManual(6, 1)">ON</button>
-                    <button class="btn" onclick="sendManual(6, 0)">OFF</button>
-                    <button class="btn active" onclick="sendManual(6, 2)">AUTO</button>
-                </div>
-            </div>
-            <div class="ev-item">
-                <div>EV 2 (PIN 7)</div>
-                <div class="group-btn" id="ctrl-7">
-                    <button class="btn" onclick="sendManual(7, 1)">ON</button>
-                    <button class="btn" onclick="sendManual(7, 0)">OFF</button>
-                    <button class="btn active" onclick="sendManual(7, 2)">AUTO</button>
-                </div>
-            </div>
-            <div class="ev-item">
-                <div>EV 3 (PIN 9)</div>
-                <div class="group-btn" id="ctrl-9">
-                    <button class="btn" onclick="sendManual(9, 1)">ON</button>
-                    <button class="btn" onclick="sendManual(9, 0)">OFF</button>
-                    <button class="btn active" onclick="sendManual(9, 2)">AUTO</button>
-                </div>
-            </div>
+        <h2>Válvulas (Manual)</h2>
+        <div class="ev-grid" id="manual-ui"></div>
+    </div>
+
+    <div class="acordeon-main" id="accProgramas">
+        <div class="acordeon-header" onclick="document.getElementById('accProgramas').classList.toggle('open')">
+            <span>📅 PROGRAMAS</span>
+            <span id="prog-count" style="font-size: 0.8rem; color: var(--neon);">0 ACTIVOS</span>
+        </div>
+        <div class="acordeon-content">
+            <div id="listaProgramas"></div>
+            <button class="btn" style="width:100%; border-style:dashed; margin-top:10px" onclick="crearPrograma()">+ AGREGAR PROGRAMA</button>
         </div>
     </div>
 
-    <div class="card">
-        <h2>PLANIFICADOR DE RIEGO</h2>
-        <div id="listaProgramas"></div>
-        <button class="btn btn-add" onclick="crearPrograma()">+ NUEVO PROGRAMA</button>
-    </div>
-
-    <div class="card">
-        <h2>HISTORIAL TÉRMICO</h2>
-        <canvas id="tempChart" style="max-height: 250px;"></canvas>
+    <div class="card" style="margin-top:20px">
+        <canvas id="tempChart" style="max-height: 180px;"></canvas>
     </div>
 
 <script>
+    // 1. CONFIGURACIÓN MQTT
     const broker = 'wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(broker, { username: 'TU_USUARIO', password: 'TU_PASSWORD' });
 
-    let programas = JSON.parse(localStorage.getItem('riego_data')) || [];
-    let logs = JSON.parse(localStorage.getItem('temp_logs')) || [];
+    let programas = JSON.parse(localStorage.getItem('riego_v4')) || [];
+    let logs = JSON.parse(localStorage.getItem('temp_v4')) || [];
+    let saveTimeout;
 
-    // --- COMUNICACIÓN ---
-    client.on('connect', () => client.subscribe('jardin/temp_log'));
+    // 2. FUNCIÓN AJAX (Segundo plano)
+    // Se usa para enviar una copia de seguridad a tu propio servidor o API
+    function enviarBackupAJAX(data) {
+        const statusEl = document.getElementById('ajax-status');
+        statusEl.innerText = "SUBIENDO CAMBIOS...";
+        statusEl.style.color = var(--neon);
+
+        // Usamos la API modern Fetch (que es el estándar actual de AJAX)
+        fetch('https://tu-servidor.com/api/save_config.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            statusEl.innerText = "NUBE ACTUALIZADA";
+            statusEl.style.color = "#00ffaa";
+        })
+        .catch(err => {
+            statusEl.innerText = "ERROR DE NUBE";
+            statusEl.style.color = "#ff4444";
+            console.log("AJAX omitido (Modo Local Demo)");
+        });
+    }
+
+    // 3. LÓGICA DE PERSISTENCIA Y AUTOGUARDADO
+    function autoSave() {
+        clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            // Guardar localmente
+            localStorage.setItem('riego_v4', JSON.stringify(programas));
+            // Enviar al MKR1000 vía MQTT
+            client.publish('jardin/config', JSON.stringify(programas), { retain: true });
+            // Sincronizar vía AJAX a servidor externo
+            enviarBackupAJAX(programas);
+            
+            document.getElementById('prog-count').innerText = programas.length + " ACTIVOS";
+        }, 1200);
+    }
+
+    function updateLocalData(id, campo, valor) {
+        const p = programas.find(x => x.id === id);
+        if (campo === 'valvula' || campo === 'dia') {
+            const idx = p[campo+'s'].indexOf(valor);
+            if (idx > -1) p[campo+'s'].splice(idx, 1);
+            else p[campo+'s'].push(valor);
+        } else {
+            p[campo] = valor;
+        }
+        autoSave();
+    }
+
+    // 4. INTERFAZ Y RENDERIZADO (SIN TIRONES)
+    function renderManual() {
+        const container = document.getElementById('manual-ui');
+        const pins = [6, 7, 9];
+        container.innerHTML = pins.map((pin, i) => `
+            <div class="ev-item">
+                <div style="font-size:0.7rem">EV ${i+1}</div>
+                <div class="group-btn" id="ctrl-${pin}">
+                    <button class="btn" onclick="sendManual(${pin}, 1)">ON</button>
+                    <button class="btn" onclick="sendManual(${pin}, 0)">OFF</button>
+                    <button class="btn active" onclick="sendManual(${pin}, 2)">AUTO</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderProgramas() {
+        const cont = document.getElementById('listaProgramas');
+        const dias = ['D','L','M','X','J','V','S'];
+        const pins = [6, 7, 9];
+
+        cont.innerHTML = programas.map(p => `
+            <div class="prog-row">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                    <input type="time" value="${p.inicio}" oninput="updateLocalData(${p.id}, 'inicio', this.value)">
+                    <input type="time" value="${p.fin}" oninput="updateLocalData(${p.id}, 'fin', this.value)">
+                </div>
+                <div class="selector-box">
+                    ${pins.map(pin => `
+                        <label><input type="checkbox" ${p.valvulas.includes(pin)?'checked':''} onchange="updateLocalData(${p.id}, 'valvula', ${pin})"> EV${pins.indexOf(pin)+1}</label>
+                    `).join(' ')}
+                </div>
+                <div class="selector-box">
+                    ${dias.map((d, i) => `
+                        <label><input type="checkbox" ${p.dias.includes(i)?'checked':''} onchange="updateLocalData(${p.id}, 'dia', ${i})"> ${d}</label>
+                    `).join(' ')}
+                </div>
+                <button onclick="eliminar(${p.id})" style="background:none; border:none; color:#444; font-size:0.6rem; cursor:pointer; margin-top:5px">× ELIMINAR PROGRAMA</button>
+            </div>
+        `).join('');
+        document.getElementById('prog-count').innerText = programas.length + " ACTIVOS";
+    }
+
+    function crearPrograma() {
+        programas.push({ id: Date.now(), inicio: "08:00", fin: "08:10", valvulas: [6], dias: [1,2,3,4,5] });
+        renderProgramas();
+        autoSave();
+    }
+
+    function eliminar(id) {
+        programas = programas.filter(p => p.id !== id);
+        renderProgramas();
+        autoSave();
+    }
+
+    function sendManual(pin, val) {
+        const btns = document.querySelectorAll(`#ctrl-${pin} .btn`);
+        btns.forEach((b, i) => b.classList.toggle('active', i === (val === 1 ? 0 : val === 0 ? 1 : 2)));
+        client.publish('jardin/manual', JSON.stringify({pin, val}));
+    }
+
+    // 5. MQTT EVENTOS
+    client.on('connect', () => {
+        document.getElementById('status-mqtt').innerText = "CONECTADO: CANAL SEGURO";
+        document.getElementById('status-mqtt').style.color = "#00ffaa";
+        client.subscribe('jardin/temp_log');
+    });
+
     client.on('message', (topic, msg) => {
         if(topic === 'jardin/temp_log') {
             const val = parseFloat(msg.toString());
@@ -117,111 +222,37 @@
         }
     });
 
-    function sendManual(pin, val) {
-        // Estética de botones
-        const btns = document.querySelectorAll(`#ctrl-${pin} .btn`);
-        btns.forEach((b, i) => b.classList.toggle('active', i === (val === 1 ? 0 : val === 0 ? 1 : 2)));
-        
-        client.publish('jardin/manual', JSON.stringify({pin, val}));
-    }
-
-    // --- LÓGICA PROGRAMAS ---
-    function crearPrograma() {
-        const p = {
-            id: Date.now(),
-            inicio: "08:00",
-            fin: "08:15",
-            valvulas: [6],
-            dias: [1,2,3,4,5]
-        };
-        programas.push(p);
-        actualizarTodo();
-    }
-
-    function actualizarTodo() {
-        localStorage.setItem('riego_data', JSON.stringify(programas));
-        renderProgramas();
-        client.publish('jardin/config', JSON.stringify(programas));
-    }
-
-    function toggleDia(id, dia) {
-        const p = programas.find(x => x.id === id);
-        if(p.dias.includes(dia)) p.dias = p.dias.filter(d => d !== dia);
-        else p.dias.push(dia);
-        actualizarTodo();
-    }
-
-    function toggleValvula(id, pin) {
-        const p = programas.find(x => x.id === id);
-        if(p.valvulas.includes(pin)) p.valvulas = p.valvulas.filter(v => v !== pin);
-        else p.valvulas.push(pin);
-        actualizarTodo();
-    }
-
-    function renderProgramas() {
-        const cont = document.getElementById('listaProgramas');
-        const diasSemana = ['D','L','M','X','J','V','S'];
-        const pins = [6, 7, 9];
-
-        cont.innerHTML = programas.map(p => `
-            <details>
-                <summary>Programa: ${p.inicio} - ${p.fin} (EV: ${p.valvulas.join(',')})</summary>
-                <div class="prog-content">
-                    <div>
-                        Inicio: <input type="time" value="${p.inicio}" onchange="programas.find(x=>x.id==${p.id}).inicio=this.value; actualizarTodo()">
-                        Fin: <input type="time" value="${p.fin}" onchange="programas.find(x=>x.id==${p.id}).fin=this.value; actualizarTodo()">
-                    </div>
-                    <div class="valve-selector">
-                        Electroválvulas: 
-                        ${pins.map(pin => `
-                            <label><input type="checkbox" ${p.valvulas.includes(pin)?'checked':''} onchange="toggleValvula(${p.id}, ${pin})"> EV${pins.indexOf(pin)+1}</label>
-                        `).join('')}
-                    </div>
-                    <div class="days-selector">
-                        Días: 
-                        ${diasSemana.map((d, i) => `
-                            <label><input type="checkbox" ${p.dias.includes(i)?'checked':''} onchange="toggleDia(${p.id}, ${i})"> ${d}</label>
-                        `).join('')}
-                    </div>
-                    <button class="btn" style="color:#ff4444; border-color:#ff4444" onclick="programas=programas.filter(x=>x.id!=${p.id}); actualizarTodo()">ELIMINAR</button>
-                </div>
-            </details>
-        `).join('');
-    }
-
-    // --- GRÁFICA ---
+    // 6. GRÁFICA
     const ctx = document.getElementById('tempChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: logs.map(l => l.t),
             datasets: [{
-                label: 'Temperatura °C',
                 data: logs.map(l => l.v),
                 borderColor: '#00d4ff',
-                backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                fill: true, tension: 0.3, pointRadius: 2
+                borderWidth: 2,
+                fill: true,
+                backgroundColor: 'rgba(0, 212, 255, 0.05)',
+                tension: 0.4,
+                pointRadius: 0
             }]
         },
-        options: { 
-            scales: { 
-                y: { grid: {color:'#222'}, ticks: {color: '#00d4ff'} },
-                x: { grid: {display:false}, ticks: {color: '#00d4ff'} }
-            },
-            plugins: { legend: { display: false } }
-        }
+        options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { display: false } } }
     });
 
     function updateChart(val) {
         const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         logs.push({t: time, v: val});
         if(logs.length > 30) logs.shift();
-        localStorage.setItem('temp_logs', JSON.stringify(logs));
+        localStorage.setItem('temp_v4', JSON.stringify(logs));
         chart.data.labels = logs.map(l => l.t);
         chart.data.datasets[0].data = logs.map(l => l.v);
         chart.update('none');
     }
 
+    // Inicialización
+    renderManual();
     renderProgramas();
 </script>
 </body>
