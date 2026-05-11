@@ -7,7 +7,7 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --gray: #333; --off: #444; }
+        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --gray: #333; --off: #444; --led-on: #00ffaa; }
         body { 
             background-color: var(--bg); color: var(--neon); 
             font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; 
@@ -27,27 +27,36 @@
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
         h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; }
 
-        /* Válvulas con Icono */
+        /* Válvulas e Indicadores */
         .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .ev-item { background: #000; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; transition: 0.3s; }
         
-        .valve-icon { width: 50px; height: 50px; margin-bottom: 10px; fill: var(--off); transition: 0.5s; filter: drop-shadow(0 0 0px transparent); }
+        .valve-icon { width: 45px; height: 45px; fill: var(--off); transition: 0.5s; filter: drop-shadow(0 0 0px transparent); }
         .valve-icon.active { fill: var(--neon); filter: drop-shadow(0 0 8px var(--neon)); }
 
-        .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 15px; }
+        /* LED de estado real */
+        .status-led {
+            width: 8px; height: 8px; border-radius: 50%; background-color: #222;
+            margin: 10px auto; transition: 0.3s; box-shadow: 0 0 0px transparent;
+        }
+        .status-led.on {
+            background-color: var(--led-on);
+            box-shadow: 0 0 10px var(--led-on), 0 0 20px rgba(0, 255, 170, 0.4);
+        }
+
+        .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
         .btn { 
             flex: 1; padding: 10px 5px; cursor: pointer; background: #111; 
             border: 1px solid #333; color: #555; border-radius: 4px; transition: 0.2s; font-size: 0.7rem; font-weight: bold;
         }
         .btn.active { border-color: var(--neon); color: var(--neon); background: rgba(0, 212, 255, 0.1); }
 
-        /* Acordeón */
+        /* Acordeón y Programas */
         .acordeon-main { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
         .acordeon-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #0a0a0a; }
         .acordeon-content { display: none; padding: 15px; background: #080808; border-top: 1px solid #222; }
         .acordeon-main.open .acordeon-content { display: block; }
 
-        /* Programas */
         .prog-row { background: #151515; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid var(--neon); }
         .prog-row.disabled { opacity: 0.3; border-left-color: var(--gray); filter: grayscale(1); }
         .prog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -95,13 +104,14 @@
     </div>
 
 <script>
+    // --- CONFIGURACIÓN MQTT ---
     const broker = 'wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(broker, { username: 'TU_USUARIO', password: 'TU_PASSWORD' });
 
+    // --- ESTADO GLOBAL ---
     let programas = JSON.parse(localStorage.getItem('riego_v4')) || [];
     let logs = JSON.parse(localStorage.getItem('temp_v4')) || [];
     let manualStates = JSON.parse(localStorage.getItem('manual_states')) || { 6: 2, 7: 2, 9: 2 }; 
-    // Estado físico real de los pines (recibido de Arduino)
     let realStates = { 6: 0, 7: 0, 9: 0 };
 
     const VALVE_SVG = `<svg class="valve-icon" viewBox="0 0 24 24"><path d="M12,7V3H10V7H5V9H10V11H12V9H17V7H12M13,15V13H11V15H7V21H17V15H13M15,19H9V17H15V19Z"/></svg>`;
@@ -114,7 +124,9 @@
                 <div id="icon-container-${pin}">
                     ${VALVE_SVG}
                 </div>
-                <div style="font-size:0.7rem; color:#666; margin-bottom:5px">VÁLVULA ${i+1} (PIN ${pin})</div>
+                <div id="led-${pin}" class="status-led ${realStates[pin] === 1 ? 'on' : ''}"></div>
+                
+                <div style="font-size:0.6rem; color:#666; margin-bottom:5px; text-transform:uppercase">Válvula ${i+1} (Pin ${pin})</div>
                 <div class="group-btn">
                     <button class="btn ${manualStates[pin] === 1 ? 'active' : ''}" onclick="sendManual(${pin}, 1)">ON</button>
                     <button class="btn ${manualStates[pin] === 0 ? 'active' : ''}" onclick="sendManual(${pin}, 0)">OFF</button>
@@ -122,15 +134,18 @@
                 </div>
             </div>
         `).join('');
-        updateValveColors();
     }
 
     function updateValveColors() {
         [6, 7, 9].forEach(pin => {
             const icon = document.querySelector(`#card-${pin} .valve-icon`);
-            if (icon) {
-                if (realStates[pin] === 1) icon.classList.add('active');
-                else icon.classList.remove('active');
+            const led = document.getElementById(`led-${pin}`);
+            if (realStates[pin] === 1) {
+                if (icon) icon.classList.add('active');
+                if (led) led.classList.add('on');
+            } else {
+                if (icon) icon.classList.remove('active');
+                if (led) led.classList.remove('on');
             }
         });
     }
@@ -216,11 +231,12 @@
         document.getElementById('prog-count').innerText = `${n} ON / ${programas.length} TOTAL`;
     }
 
+    // --- MANEJO MQTT ---
     client.on('connect', () => {
         document.getElementById('status-mqtt').innerText = "CONECTADO AL BROKER";
         document.getElementById('status-mqtt').style.color = "#00ffaa";
         client.subscribe('jardin/temp_log');
-        client.subscribe('jardin/estado'); // Escucha el estado real de los pines
+        client.subscribe('jardin/estado');
     });
 
     client.on('message', (topic, msg) => {
@@ -230,15 +246,15 @@
             document.getElementById('bigTemp').innerText = val.toFixed(1);
             updateChart(val);
         } else if(topic === 'jardin/estado') {
-            // Espera JSON tipo {"6":1, "7":0, "9":1}
             try {
                 const states = JSON.parse(data);
                 Object.assign(realStates, states);
                 updateValveColors();
-            } catch(e) {}
+            } catch(e) { console.error("Error en JSON de estado", e); }
         }
     });
 
+    // --- GRÁFICA ---
     const ctx = document.getElementById('tempChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
@@ -246,7 +262,13 @@
             labels: logs.map(l => l.t),
             datasets: [{ data: logs.map(l => l.v), borderColor: '#00d4ff', borderWidth: 2, fill: false, tension: 0.4, pointRadius: 0 }]
         },
-        options: { plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#111' } }, x: { display: false } } }
+        options: { 
+            plugins: { legend: { display: false } }, 
+            scales: { 
+                y: { grid: { color: '#111' }, ticks: { color: '#555' } }, 
+                x: { display: false } 
+            } 
+        }
     });
 
     function updateChart(val) {
@@ -256,8 +278,10 @@
         chart.data.labels = logs.map(l => l.t);
         chart.data.datasets[0].data = logs.map(l => l.v);
         chart.update('none');
+        localStorage.setItem('temp_v4', JSON.stringify(logs));
     }
 
+    // --- INICIO ---
     renderManual();
     renderProgramas();
 </script>
