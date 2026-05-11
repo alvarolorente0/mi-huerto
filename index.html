@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISTEMA DE RIEGO - MKR1000</title>
+    <title>SISTEMA DE RIEGO - MKR1000 PRO</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --neon: #00d4ff; --bg: #050505; --card: #0f0f0f; }
+        :root { --neon: #00d4ff; --bg: #050505; --card: #0f0f0f; --gray: #444; }
         body { 
             background-color: var(--bg); color: var(--neon); 
             font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; 
@@ -23,27 +23,26 @@
         .temp-val { font-size: 5.5rem; font-weight: 900; line-height: 1; margin: 10px 0; }
         .temp-label { font-size: 0.7rem; letter-spacing: 4px; color: #444; }
 
-        /* Notificación AJAX Silenciosa */
         #ajax-status { 
             position: fixed; bottom: 10px; right: 10px; font-size: 0.6rem; 
-            color: #444; transition: 0.5s; 
+            color: #444; transition: 0.5s; z-index: 10;
         }
 
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
-        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #555; text-transform: uppercase; }
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #555; text-transform: uppercase; margin-top: 0; }
 
         /* Controles Manuales */
         .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .ev-item { background: #111; padding: 12px; border-radius: 10px; border: 1px solid #222; text-align: center; }
         .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
         .btn { 
-            padding: 6px 12px; cursor: pointer; background: #000; 
+            padding: 8px 12px; cursor: pointer; background: #000; 
             border: 1px solid #333; color: #777; border-radius: 4px; transition: 0.2s; font-size: 0.8rem;
         }
         .btn.active { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 10px rgba(0, 212, 255, 0.2); }
 
         /* Acordeón */
-        .acordeon-main { border: 1px solid var(--neon); border-radius: 10px; overflow: hidden; }
+        .acordeon-main { border: 1px solid var(--neon); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
         .acordeon-header { 
             background: #0a0a0a; padding: 15px; cursor: pointer; 
             display: flex; justify-content: space-between; align-items: center; 
@@ -51,9 +50,25 @@
         .acordeon-content { display: none; padding: 15px; background: #080808; border-top: 1px solid #222; }
         .acordeon-main.open .acordeon-content { display: block; }
 
-        .prog-row { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid var(--neon); }
-        input[type="time"] { background: #000; border: 1px solid #444; color: var(--neon); padding: 5px; border-radius: 4px; width: 85%; }
-        .selector-box { font-size: 0.75rem; margin-top: 8px; color: #aaa; }
+        /* Programas */
+        .prog-row { background: #111; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid var(--neon); transition: 0.3s; }
+        .prog-row.disabled { opacity: 0.4; border-left-color: var(--gray); filter: grayscale(1); }
+        
+        .prog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        
+        input[type="time"] { background: #000; border: 1px solid #444; color: var(--neon); padding: 5px; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        .selector-box { font-size: 0.75rem; margin-top: 10px; color: #aaa; }
+        .selector-box label { margin-right: 8px; cursor: pointer; }
+
+        /* Switch Toggle */
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { 
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: #222; transition: .4s; border-radius: 20px; border: 1px solid #444;
+        }
+        input:checked + .slider { background-color: var(--neon); box-shadow: 0 0 10px rgba(0, 212, 255, 0.4); }
+
     </style>
 </head>
 <body>
@@ -67,27 +82,28 @@
     </div>
 
     <div class="card">
-        <h2>Válvulas (Manual)</h2>
+        <h2>Válvulas (Control Manual)</h2>
         <div class="ev-grid" id="manual-ui"></div>
     </div>
 
     <div class="acordeon-main" id="accProgramas">
         <div class="acordeon-header" onclick="document.getElementById('accProgramas').classList.toggle('open')">
-            <span>📅 PROGRAMAS</span>
+            <span>📅 CONFIGURACIÓN DE RIEGO</span>
             <span id="prog-count" style="font-size: 0.8rem; color: var(--neon);">0 ACTIVOS</span>
         </div>
         <div class="acordeon-content">
             <div id="listaProgramas"></div>
-            <button class="btn" style="width:100%; border-style:dashed; margin-top:10px" onclick="crearPrograma()">+ AGREGAR PROGRAMA</button>
+            <button class="btn" style="width:100%; border-style:dashed; margin-top:10px; color:var(--neon)" onclick="crearPrograma()">+ AÑADIR NUEVO PROGRAMA</button>
         </div>
     </div>
 
-    <div class="card" style="margin-top:20px">
-        <canvas id="tempChart" style="max-height: 180px;"></canvas>
+    <div class="card">
+        <h2>Historial de Temperatura</h2>
+        <canvas id="tempChart" style="max-height: 150px;"></canvas>
     </div>
 
 <script>
-    // 1. CONFIGURACIÓN MQTT
+    // 1. CONFIGURACIÓN MQTT (Ajustar con tus credenciales)
     const broker = 'wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt';
     const client = mqtt.connect(broker, { username: 'TU_USUARIO', password: 'TU_PASSWORD' });
 
@@ -95,43 +111,46 @@
     let logs = JSON.parse(localStorage.getItem('temp_v4')) || [];
     let saveTimeout;
 
-    // 2. FUNCIÓN AJAX (Segundo plano)
-    // Se usa para enviar una copia de seguridad a tu propio servidor o API
+    // 2. SINCRONIZACIÓN AJAX
     function enviarBackupAJAX(data) {
         const statusEl = document.getElementById('ajax-status');
-        statusEl.innerText = "SUBIENDO CAMBIOS...";
-        statusEl.style.color = var(--neon);
+        statusEl.innerText = "SUBIENDO...";
+        statusEl.style.color = "#00d4ff";
 
-        // Usamos la API modern Fetch (que es el estándar actual de AJAX)
         fetch('https://tu-servidor.com/api/save_config.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         })
-        .then(response => {
-            statusEl.innerText = "NUBE ACTUALIZADA";
+        .then(() => {
+            statusEl.innerText = "NUBE OK";
             statusEl.style.color = "#00ffaa";
         })
-        .catch(err => {
-            statusEl.innerText = "ERROR DE NUBE";
-            statusEl.style.color = "#ff4444";
-            console.log("AJAX omitido (Modo Local Demo)");
+        .catch(() => {
+            statusEl.innerText = "MODO LOCAL";
+            statusEl.style.color = "#666";
         });
     }
 
-    // 3. LÓGICA DE PERSISTENCIA Y AUTOGUARDADO
+    // 3. PERSISTENCIA Y ENVÍO FILTRADO AL ARDUINO
     function autoSave() {
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-            // Guardar localmente
+            // Guardar localmente (TODO)
             localStorage.setItem('riego_v4', JSON.stringify(programas));
-            // Enviar al MKR1000 vía MQTT
-            client.publish('jardin/config', JSON.stringify(programas), { retain: true });
-            // Sincronizar vía AJAX a servidor externo
-            enviarBackupAJAX(programas);
             
-            document.getElementById('prog-count').innerText = programas.length + " ACTIVOS";
+            // FILTRO CRÍTICO: Solo mandamos los programas con 'act: true' al MKR1000
+            const activos = programas.filter(p => p.act === true);
+            client.publish('jardin/config', JSON.stringify(activos), { retain: true });
+            
+            enviarBackupAJAX(programas);
+            actualizarContador();
         }, 1200);
+    }
+
+    function actualizarContador() {
+        const numActivos = programas.filter(p => p.act).length;
+        document.getElementById('prog-count').innerText = `${numActivos} ACTIVOS / ${programas.length} TOTAL`;
     }
 
     function updateLocalData(id, campo, valor) {
@@ -143,16 +162,18 @@
         } else {
             p[campo] = valor;
         }
+        
+        if(campo === 'act') renderProgramas(); // Refrescar para aplicar efecto visual de "apagado"
         autoSave();
     }
 
-    // 4. INTERFAZ Y RENDERIZADO (SIN TIRONES)
+    // 4. RENDERIZADO DE INTERFAZ
     function renderManual() {
         const container = document.getElementById('manual-ui');
         const pins = [6, 7, 9];
         container.innerHTML = pins.map((pin, i) => `
             <div class="ev-item">
-                <div style="font-size:0.7rem">EV ${i+1}</div>
+                <div style="font-size:0.7rem; color:#555">ELECTROVÁLVULA ${i+1}</div>
                 <div class="group-btn" id="ctrl-${pin}">
                     <button class="btn" onclick="sendManual(${pin}, 1)">ON</button>
                     <button class="btn" onclick="sendManual(${pin}, 0)">OFF</button>
@@ -168,37 +189,65 @@
         const pins = [6, 7, 9];
 
         cont.innerHTML = programas.map(p => `
-            <div class="prog-row">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
-                    <input type="time" value="${p.inicio}" oninput="updateLocalData(${p.id}, 'inicio', this.value)">
-                    <input type="time" value="${p.fin}" oninput="updateLocalData(${p.id}, 'fin', this.value)">
+            <div class="prog-row ${p.act ? '' : 'disabled'}">
+                <div class="prog-header">
+                    <span style="font-size:0.7rem; font-weight:bold">${p.act ? '● PROGRAMA ACTIVO' : '○ DESACTIVADO'}</span>
+                    <label class="switch">
+                        <input type="checkbox" ${p.act ? 'checked' : ''} onchange="updateLocalData(${p.id}, 'act', this.checked)">
+                        <span class="slider"></span>
+                    </label>
                 </div>
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                    <div>
+                        <div style="font-size:0.6rem; margin-bottom:3px">INICIO</div>
+                        <input type="time" value="${p.inicio}" oninput="updateLocalData(${p.id}, 'inicio', this.value)">
+                    </div>
+                    <div>
+                        <div style="font-size:0.6rem; margin-bottom:3px">FIN</div>
+                        <input type="time" value="${p.fin}" oninput="updateLocalData(${p.id}, 'fin', this.value)">
+                    </div>
+                </div>
+
                 <div class="selector-box">
+                    <div style="margin-bottom:5px; color:#555">ASIGNAR VÁLVULAS:</div>
                     ${pins.map(pin => `
                         <label><input type="checkbox" ${p.valvulas.includes(pin)?'checked':''} onchange="updateLocalData(${p.id}, 'valvula', ${pin})"> EV${pins.indexOf(pin)+1}</label>
-                    `).join(' ')}
+                    `).join('')}
                 </div>
+
                 <div class="selector-box">
+                    <div style="margin-bottom:5px; color:#555">REPETIR DÍAS:</div>
                     ${dias.map((d, i) => `
                         <label><input type="checkbox" ${p.dias.includes(i)?'checked':''} onchange="updateLocalData(${p.id}, 'dia', ${i})"> ${d}</label>
-                    `).join(' ')}
+                    `).join('')}
                 </div>
-                <button onclick="eliminar(${p.id})" style="background:none; border:none; color:#444; font-size:0.6rem; cursor:pointer; margin-top:5px">× ELIMINAR PROGRAMA</button>
+                
+                <button onclick="eliminar(${p.id})" style="background:none; border:none; color:#ff4444; font-size:0.6rem; cursor:pointer; margin-top:15px; padding:0; opacity:0.7">ELIMINAR ESTE PROGRAMA</button>
             </div>
         `).join('');
-        document.getElementById('prog-count').innerText = programas.length + " ACTIVOS";
+        actualizarContador();
     }
 
     function crearPrograma() {
-        programas.push({ id: Date.now(), inicio: "08:00", fin: "08:10", valvulas: [6], dias: [1,2,3,4,5] });
+        programas.push({ 
+            id: Date.now(), 
+            act: true, 
+            inicio: "08:00", 
+            fin: "08:10", 
+            valvulas: [6], 
+            dias: [1,2,3,4,5] 
+        });
         renderProgramas();
         autoSave();
     }
 
     function eliminar(id) {
-        programas = programas.filter(p => p.id !== id);
-        renderProgramas();
-        autoSave();
+        if(confirm("¿Eliminar este programa?")) {
+            programas = programas.filter(p => p.id !== id);
+            renderProgramas();
+            autoSave();
+        }
     }
 
     function sendManual(pin, val) {
@@ -207,7 +256,7 @@
         client.publish('jardin/manual', JSON.stringify({pin, val}));
     }
 
-    // 5. MQTT EVENTOS
+    // 5. EVENTOS MQTT
     client.on('connect', () => {
         document.getElementById('status-mqtt').innerText = "CONECTADO: CANAL SEGURO";
         document.getElementById('status-mqtt').style.color = "#00ffaa";
@@ -238,7 +287,13 @@
                 pointRadius: 0
             }]
         },
-        options: { plugins: { legend: { display: false } }, scales: { y: { display: false }, x: { display: false } } }
+        options: { 
+            plugins: { legend: { display: false } }, 
+            scales: { 
+                y: { display: true, grid: { color: '#111' }, ticks: { color: '#444', font: { size: 9 } } }, 
+                x: { display: false } 
+            } 
+        }
     });
 
     function updateChart(val) {
