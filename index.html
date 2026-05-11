@@ -1,108 +1,160 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Smart Irrigation MKR1000</title>
+    <meta charset="UTF-8">
+    <title>SISTEMA DE RIEGO - MKR1000</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn { padding: 10px; cursor: pointer; border: none; border-radius: 4px; }
-        .on { background: #28a745; color: white; }
-        .off { background: #dc3545; color: white; }
+        body { 
+            background-color: #000000; 
+            color: #00d4ff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        .card { 
+            background: #0a0a0a; 
+            border: 2px solid #00d4ff; 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin-bottom: 25px;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }
+        h2 { border-bottom: 1px solid #00d4ff; padding-bottom: 10px; text-transform: uppercase; }
+        
+        .btn { 
+            padding: 10px 20px; 
+            cursor: pointer; 
+            background: transparent; 
+            border: 1px solid #00d4ff; 
+            color: #00d4ff;
+            border-radius: 5px;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #00d4ff; color: #000; box-shadow: 0 0 10px #00d4ff; }
+        .btn.active { background: #00d4ff; color: #000; }
+
+        input, select {
+            background: #111;
+            border: 1px solid #00d4ff;
+            color: #00d4ff;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .prog-item {
+            border-left: 3px solid #00d4ff;
+            padding: 10px;
+            margin: 10px 0;
+            background: #111;
+        }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>Control Manual</h2>
-        V6: <button class="btn off" onclick="sendManual(6, true)">ON</button> <button class="btn off" onclick="sendManual(6, false)">OFF</button>
-        V7: <button class="btn off" onclick="sendManual(7, true)">ON</button> <button class="btn off" onclick="sendManual(7, false)">OFF</button>
-        V9: <button class="btn off" onclick="sendManual(9, true)">ON</button> <button class="btn off" onclick="sendManual(9, false)">OFF</button>
+        <h2>Control Manual (ON/OFF/AUTO)</h2>
+        <div id="manual-controls">
+            </div>
     </div>
 
     <div class="card">
-        <h2>Programación de Riego</h2>
+        <h2>Programas de Riego</h2>
         <div id="listaProgramas"></div>
-        <button class="btn on" onclick="crearPrograma()">+ Nuevo Programa</button>
+        <button class="btn" onclick="crearPrograma()">+ AGREGAR PROGRAMA</button>
     </div>
 
     <div class="card">
-        <canvas id="tempChart"></canvas>
+        <h2>Historial de Temperatura (24h)</h2>
+        <canvas id="tempChart" style="max-height: 300px;"></canvas>
     </div>
 
 <script>
-    // Configuración HiveMQ (Websocket)
-    const client = mqtt.connect('wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt', {
-        username: 'TU_USER',
-        password: 'TU_PASSWORD'
-    });
+    const broker = 'wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt';
+    const options = { username: 'TU_USUARIO', password: 'TU_PASSWORD' };
+    const client = mqtt.connect(broker, options);
 
-    let programas = JSON.parse(localStorage.getItem('programas')) || [];
-    let historyTemp = JSON.parse(localStorage.getItem('historyTemp')) || [];
+    let programas = JSON.parse(localStorage.getItem('riego_progs')) || [];
+    let logs = JSON.parse(localStorage.getItem('temp_logs')) || [];
 
     client.on('connect', () => {
         client.subscribe('jardin/temp_log');
-        // Sincronizar hora con Arduino
-        client.publish('jardin/config', JSON.stringify({time: Math.floor(Date.now()/1000)}));
+        client.publish('jardin/config', JSON.stringify({sync: Date.now()}));
     });
 
-    client.on('message', (topic, message) => {
-        if(topic === 'jardin/temp_log') {
-            updateChart(parseFloat(message.toString()));
-        }
+    client.on('message', (topic, msg) => {
+        if(topic === 'jardin/temp_log') updateChart(parseFloat(msg.toString()));
     });
 
-    function sendManual(pin, state) {
-        const cmd = {}; cmd[pin] = state;
-        client.publish('jardin/manual', JSON.stringify(cmd));
+    function sendCommand(pin, mode) {
+        // mode: 0=OFF, 1=ON, 2=AUTO
+        client.publish('jardin/manual', JSON.stringify({pin: pin, val: mode}));
     }
 
     function crearPrograma() {
-        const p = { slot: programas.length, h: 12, m: 0, v6: true, v7: false, v9: false, active: true };
-        programas.push(p);
-        save();
+        const nuevo = { id: Date.now(), h: "08:00", v: [6], dias: [1,2,3,4,5], active: true };
+        programas.push(nuevo);
+        actualizarTodo();
     }
 
-    function save() {
-        localStorage.setItem('programas', JSON.stringify(programas));
-        render();
-        // Enviar al Arduino cada programa
-        programas.forEach(p => client.publish('jardin/config', JSON.stringify(p)));
+    function borrarPrograma(id) {
+        programas = programas.filter(p => p.id !== id);
+        actualizarTodo();
     }
 
-    function render() {
-        const div = document.getElementById('listaProgramas');
-        div.innerHTML = programas.map((p, i) => `
-            <div>
-                Prog ${i}: <input type="time" value="${p.h}:${p.m}" onchange="programas[${i}].h=this.value.split(':')[0]; save()">
-                Activo: <input type="checkbox" ${p.active?'checked':''} onchange="programas[${i}].active=this.checked; save()">
-                <button onclick="programas.splice(${i},1); save()">Eliminar</button>
+    function actualizarTodo() {
+        localStorage.setItem('riego_progs', JSON.stringify(programas));
+        renderList();
+        client.publish('jardin/config', JSON.stringify(programas));
+    }
+
+    function renderList() {
+        const cont = document.getElementById('listaProgramas');
+        cont.innerHTML = programas.map(p => `
+            <div class="prog-item">
+                Hora: <input type="time" value="${p.h}" onchange="p.h=this.value; actualizarTodo()">
+                Válvulas: [6,7,9] 
+                <button class="btn" onclick="borrarPrograma(${p.id})">ELIMINAR</button>
             </div>
         `).join('');
     }
 
-    // Gráfica Chart.js
-    const ctx = document.getElementById('tempChart');
+    // Configuración de la Gráfica Azul
+    const ctx = document.getElementById('tempChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: historyTemp.map(d => d.t),
-            datasets: [{ label: 'Temp últimas 24h', data: historyTemp.map(d => d.v), borderColor: '#2196F3' }]
+            labels: logs.map(l => l.t),
+            datasets: [{
+                label: 'Temperatura °C',
+                data: logs.map(l => l.v),
+                borderColor: '#00d4ff',
+                backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true
+            }]
+        },
+        options: {
+            scales: {
+                y: { grid: { color: '#222' }, ticks: { color: '#00d4ff' } },
+                x: { grid: { color: '#222' }, ticks: { color: '#00d4ff' } }
+            },
+            plugins: { legend: { labels: { color: '#00d4ff' } } }
         }
     });
 
     function updateChart(val) {
-        const now = new Date().toLocaleTimeString();
-        historyTemp.push({t: now, v: val});
-        if(historyTemp.length > 48) historyTemp.shift(); // 24h / 30min = 48 puntos
-        localStorage.setItem('historyTemp', JSON.stringify(historyTemp));
-        chart.data.labels = historyTemp.map(d => d.t);
-        chart.data.datasets[0].data = historyTemp.map(d => d.v);
+        const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        logs.push({t: time, v: val});
+        if(logs.length > 48) logs.shift();
+        localStorage.setItem('temp_logs', JSON.stringify(logs));
+        chart.data.labels = logs.map(l => l.t);
+        chart.data.datasets[0].data = logs.map(l => l.v);
         chart.update();
     }
 
-    render();
+    renderList();
 </script>
 </body>
 </html>
