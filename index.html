@@ -12,9 +12,7 @@
             background-color: var(--bg); color: var(--neon); 
             font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; 
         }
-        
         #ajax-status { position: fixed; top: 10px; right: 10px; font-size: 0.6rem; color: #444; }
-
         .hero-temp {
             text-align: center; padding: 30px; margin-bottom: 20px;
             background: radial-gradient(circle, #1a1a1a 0%, #050505 100%);
@@ -23,70 +21,47 @@
         }
         .temp-val { font-size: 5.5rem; font-weight: 900; line-height: 1; margin: 10px 0; }
         #status-mqtt { font-size: 0.6rem; margin-top: 10px; font-weight: bold; }
-
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
         h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; }
-
-        /* Válvulas e Indicadores */
         .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-        .ev-item { background: #000; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; transition: 0.3s; }
-        
-        .valve-icon { width: 45px; height: 45px; fill: var(--off); transition: 0.5s; filter: drop-shadow(0 0 0px transparent); }
+        .ev-item { background: #000; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; }
+        .valve-icon { width: 45px; height: 45px; fill: var(--off); transition: 0.5s; }
         .valve-icon.active { fill: var(--neon); filter: drop-shadow(0 0 8px var(--neon)); }
-
-        /* LED de estado real */
         .status-led {
             width: 8px; height: 8px; border-radius: 50%; background-color: #222;
-            margin: 10px auto; transition: 0.3s; box-shadow: 0 0 0px transparent;
+            margin: 10px auto; transition: 0.3s;
         }
-        .status-led.on {
-            background-color: var(--led-on);
-            box-shadow: 0 0 10px var(--led-on), 0 0 20px rgba(0, 255, 170, 0.4);
-        }
-
+        .status-led.on { background-color: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
         .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
         .btn { 
             flex: 1; padding: 10px 5px; cursor: pointer; background: #111; 
-            border: 1px solid #333; color: #555; border-radius: 4px; transition: 0.2s; font-size: 0.7rem; font-weight: bold;
+            border: 1px solid #333; color: #555; border-radius: 4px; font-size: 0.7rem; font-weight: bold;
         }
         .btn.active { border-color: var(--neon); color: var(--neon); background: rgba(0, 212, 255, 0.1); }
-
-        /* Acordeón y Programas */
         .acordeon-main { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-        .acordeon-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #0a0a0a; }
+        .acordeon-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; background: #0a0a0a; }
         .acordeon-content { display: none; padding: 15px; background: #080808; border-top: 1px solid #222; }
         .acordeon-main.open .acordeon-content { display: block; }
-
         .prog-row { background: #151515; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid var(--neon); }
-        .prog-row.disabled { opacity: 0.3; border-left-color: var(--gray); filter: grayscale(1); }
-        .prog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        
-        input[type="time"] { background: #000; border: 1px solid #333; color: var(--neon); padding: 6px; border-radius: 4px; width: 100%; }
-        .selector-box { font-size: 0.75rem; margin-top: 12px; color: #888; }
-
+        .prog-row.disabled { opacity: 0.3; filter: grayscale(1); }
         .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .3s; border-radius: 20px; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; border-radius: 20px; transition: .3s; }
         input:checked + .slider { background-color: var(--neon); }
-
         .btn-add { width: 100%; border: 1px dashed var(--neon); color: var(--neon); background: transparent; padding: 12px; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
-
     <div id="ajax-status">SISTEMA EN LINEA</div>
-
     <div class="hero-temp">
         <div style="font-size: 0.7rem; letter-spacing: 4px; color: #555;">MONITOR DE RIEGO ACTIVO</div>
         <div class="temp-val"><span id="bigTemp">--.-</span>°</div>
         <div id="status-mqtt" style="color: #ff4444;">BROKER DESCONECTADO</div>
     </div>
-
     <div class="card">
         <h2>Estado de Salidas</h2>
         <div class="ev-grid" id="manual-ui"></div>
     </div>
-
     <div class="acordeon-main" id="accProgramas">
         <div class="acordeon-header" onclick="this.parentElement.classList.toggle('open')">
             <span>📅 PROGRAMAS DE RIEGO</span>
@@ -97,193 +72,18 @@
             <button class="btn-add" onclick="crearPrograma()">+ AGREGAR PROGRAMA NUEVO</button>
         </div>
     </div>
-
     <div class="card">
         <h2>Histórico Temperatura</h2>
         <canvas id="tempChart" style="max-height: 140px;"></canvas>
     </div>
 
 <script>
-    // --- CONFIGURACIÓN MQTT ---
-    const broker = 'wss://TU_ID.s1.eu.hivemq.cloud:8884/mqtt';
-    const client = mqtt.connect(broker, { username: 'TU_USUARIO', password: 'TU_PASSWORD' });
+    const broker = 'wss://TU_ID_AQUÍ.s1.eu.hivemq.cloud:8884/mqtt';
+    const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
 
-    // --- ESTADO GLOBAL ---
     let programas = JSON.parse(localStorage.getItem('riego_v4')) || [];
     let logs = JSON.parse(localStorage.getItem('temp_v4')) || [];
     let manualStates = JSON.parse(localStorage.getItem('manual_states')) || { 6: 2, 7: 2, 9: 2 }; 
     let realStates = { 6: 0, 7: 0, 9: 0 };
 
-    const VALVE_SVG = `<svg class="valve-icon" viewBox="0 0 24 24"><path d="M12,7V3H10V7H5V9H10V11H12V9H17V7H12M13,15V13H11V15H7V21H17V15H13M15,19H9V17H15V19Z"/></svg>`;
-
-    function renderManual() {
-        const container = document.getElementById('manual-ui');
-        const pins = [6, 7, 9];
-        container.innerHTML = pins.map((pin, i) => `
-            <div class="ev-item" id="card-${pin}">
-                <div id="icon-container-${pin}">
-                    ${VALVE_SVG}
-                </div>
-                <div id="led-${pin}" class="status-led ${realStates[pin] === 1 ? 'on' : ''}"></div>
-                
-                <div style="font-size:0.6rem; color:#666; margin-bottom:5px; text-transform:uppercase">Válvula ${i+1} (Pin ${pin})</div>
-                <div class="group-btn">
-                    <button class="btn ${manualStates[pin] === 1 ? 'active' : ''}" onclick="sendManual(${pin}, 1)">ON</button>
-                    <button class="btn ${manualStates[pin] === 0 ? 'active' : ''}" onclick="sendManual(${pin}, 0)">OFF</button>
-                    <button class="btn ${manualStates[pin] === 2 ? 'active' : ''}" onclick="sendManual(${pin}, 2)">AUTO</button>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    function updateValveColors() {
-        [6, 7, 9].forEach(pin => {
-            const icon = document.querySelector(`#card-${pin} .valve-icon`);
-            const led = document.getElementById(`led-${pin}`);
-            if (realStates[pin] === 1) {
-                if (icon) icon.classList.add('active');
-                if (led) led.classList.add('on');
-            } else {
-                if (icon) icon.classList.remove('active');
-                if (led) led.classList.remove('on');
-            }
-        });
-    }
-
-    function sendManual(pin, val) {
-        manualStates[pin] = val;
-        renderManual();
-        client.publish('jardin/manual', JSON.stringify({pin, val}), { qos: 1 });
-        localStorage.setItem('manual_states', JSON.stringify(manualStates));
-    }
-
-    function autoSave() {
-        localStorage.setItem('riego_v4', JSON.stringify(programas));
-        const activos = programas.filter(p => p.act === true);
-        client.publish('jardin/config', JSON.stringify(activos), { retain: true });
-        actualizarContador();
-    }
-
-    function renderProgramas() {
-        const cont = document.getElementById('listaProgramas');
-        const dias = ['D','L','M','X','J','V','S'];
-        const pins = [6, 7, 9];
-
-        cont.innerHTML = programas.map(p => `
-            <div class="prog-row ${p.act ? '' : 'disabled'}">
-                <div class="prog-header">
-                    <span style="font-size:0.6rem; font-weight:bold">${p.act ? '● PROGRAMA ACTIVO' : '○ EN PAUSA'}</span>
-                    <label class="switch">
-                        <input type="checkbox" ${p.act ? 'checked' : ''} onchange="toggleProg(${p.id}, this.checked)">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
-                    <input type="time" value="${p.inicio}" oninput="updateProg(${p.id}, 'inicio', this.value)">
-                    <input type="time" value="${p.fin}" oninput="updateProg(${p.id}, 'fin', this.value)">
-                </div>
-                <div class="selector-box">
-                    VÁLVULAS: ${pins.map(pin => `
-                        <label><input type="checkbox" ${p.valvulas.includes(pin)?'checked':''} onchange="updateProg(${p.id}, 'valvula', ${pin})"> PIN ${pin}</label>
-                    `).join(' ')}
-                </div>
-                <div class="selector-box">
-                    DÍAS: ${dias.map((d, i) => `
-                        <label><input type="checkbox" ${p.dias.includes(i)?'checked':''} onchange="updateProg(${p.id}, 'dia', ${i})"> ${d}</label>
-                    `).join(' ')}
-                </div>
-                <button onclick="eliminar(${p.id})" style="background:none; border:none; color:#555; font-size:0.6rem; cursor:pointer; margin-top:10px">✕ ELIMINAR</button>
-            </div>
-        `).join('');
-        actualizarContador();
-    }
-
-    function toggleProg(id, val) {
-        programas.find(p => p.id === id).act = val;
-        renderProgramas();
-        autoSave();
-    }
-
-    function updateProg(id, campo, valor) {
-        const p = programas.find(x => x.id === id);
-        if (campo === 'valvula' || campo === 'dia') {
-            const idx = p[campo+'s'].indexOf(valor);
-            if (idx > -1) p[campo+'s'].splice(idx, 1);
-            else p[campo+'s'].push(valor);
-        } else { p[campo] = valor; }
-        autoSave();
-    }
-
-    function crearPrograma() {
-        programas.push({ id: Date.now(), act: true, inicio: "08:00", fin: "08:10", valvulas: [6], dias: [1,2,3,4,5] });
-        renderProgramas();
-        autoSave();
-    }
-
-    function eliminar(id) {
-        programas = programas.filter(p => p.id !== id);
-        renderProgramas();
-        autoSave();
-    }
-
-    function actualizarContador() {
-        const n = programas.filter(p => p.act).length;
-        document.getElementById('prog-count').innerText = `${n} ON / ${programas.length} TOTAL`;
-    }
-
-    // --- MANEJO MQTT ---
-    client.on('connect', () => {
-        document.getElementById('status-mqtt').innerText = "CONECTADO AL BROKER";
-        document.getElementById('status-mqtt').style.color = "#00ffaa";
-        client.subscribe('jardin/temp_log');
-        client.subscribe('jardin/estado');
-    });
-
-    client.on('message', (topic, msg) => {
-        const data = msg.toString();
-        if(topic === 'jardin/temp_log') {
-            const val = parseFloat(data);
-            document.getElementById('bigTemp').innerText = val.toFixed(1);
-            updateChart(val);
-        } else if(topic === 'jardin/estado') {
-            try {
-                const states = JSON.parse(data);
-                Object.assign(realStates, states);
-                updateValveColors();
-            } catch(e) { console.error("Error en JSON de estado", e); }
-        }
-    });
-
-    // --- GRÁFICA ---
-    const ctx = document.getElementById('tempChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: logs.map(l => l.t),
-            datasets: [{ data: logs.map(l => l.v), borderColor: '#00d4ff', borderWidth: 2, fill: false, tension: 0.4, pointRadius: 0 }]
-        },
-        options: { 
-            plugins: { legend: { display: false } }, 
-            scales: { 
-                y: { grid: { color: '#111' }, ticks: { color: '#555' } }, 
-                x: { display: false } 
-            } 
-        }
-    });
-
-    function updateChart(val) {
-        const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        logs.push({t: time, v: val});
-        if(logs.length > 30) logs.shift();
-        chart.data.labels = logs.map(l => l.t);
-        chart.data.datasets[0].data = logs.map(l => l.v);
-        chart.update('none');
-        localStorage.setItem('temp_v4', JSON.stringify(logs));
-    }
-
-    // --- INICIO ---
-    renderManual();
-    renderProgramas();
-</script>
-</body>
-</html>
+    const VALVE_SVG = `<svg class="valve-icon" viewBox="0 0 24 24"><path d="M12,7V3H10V7H5V9H10V11H12V9H17V7H12M13,15V13H11V15H7V21H17V15H13M15,19H
