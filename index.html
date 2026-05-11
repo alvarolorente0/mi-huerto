@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CONTROL DE RIEGO - MKR1000</title>
+    <title>RIEGO CLOUD - MKR1000</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -25,34 +25,33 @@
         .status-led.on { background: var(--led); box-shadow: 0 0 10px var(--led); }
         
         .btn-group { display: flex; gap: 4px; margin-top: 12px; }
-        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.65rem; font-weight: bold; transition: 0.2s; }
+        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.65rem; font-weight: bold; }
         .btn-m.active-on { border-color: var(--led); color: var(--led); background: rgba(0,255,170,0.1); }
         .btn-m.active-off { border-color: var(--red); color: var(--red); background: rgba(255,68,68,0.1); }
         .btn-m.active-auto { border-color: var(--neon); color: var(--neon); background: rgba(0,212,255,0.1); }
 
         /* Acordeón */
         .acc-container { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; color: var(--neon); font-weight: bold; border: none; cursor: pointer; display: flex; justify-content: space-between; }
+        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; color: var(--neon); font-weight: bold; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .acc-body { display: none; padding: 15px; background: #0c0c0c; border-top: 1px solid #222; }
         .acc-body.open { display: block; }
         
         .prog-card { background: #151515; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--neon); display: flex; justify-content: space-between; align-items: center; }
-        .prog-card.inactive { opacity: 0.4; }
 
-        /* Formulario */
-        .form-new { display: grid; gap: 12px; margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; border: 1px dashed #333; }
+        /* Formulario de Programación */
+        .form-new { display: grid; gap: 12px; margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; border: 1px dashed #444; }
         .day-selector { display: flex; justify-content: space-between; padding: 5px; }
         .day-selector label { font-size: 0.65rem; display: flex; flex-direction: column; align-items: center; gap: 4px; color: #888; cursor: pointer; }
-        input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; width: 100%; }
-        .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+        input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+        .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
     <div class="hero-temp">
-        <div style="font-size: 0.6rem; letter-spacing: 2px; color: #555;">SISTEMA EN LÍNEA</div>
+        <div style="font-size: 0.6rem; letter-spacing: 2px; color: #555;">TEMPERATURA JARDÍN</div>
         <div class="temp-val"><span id="valTemp">--.-</span>°C</div>
-        <div id="mqtt-status" style="color: var(--red);">CONECTANDO AL BROKER...</div>
+        <div id="mqtt-status" style="color: var(--red);">CONECTANDO...</div>
     </div>
 
     <div class="card">
@@ -62,24 +61,24 @@
 
     <div class="acc-container">
         <button class="acc-header" onclick="document.getElementById('acc-body').classList.toggle('open')">
-            <span>📅 PROGRAMACIÓN SEMANAL</span>
+            <span>📅 CONFIGURAR PROGRAMACIÓN</span>
             <span id="count-activos" style="font-size: 0.7rem; background: var(--neon); color: #000; padding: 2px 8px; border-radius: 10px;">0</span>
         </button>
         <div class="acc-body" id="acc-body">
             <div id="lista-progs"></div>
             
             <div class="form-new">
-                <h3 style="font-size: 0.7rem; color: var(--neon); margin: 0;">NUEVO PROGRAMA:</h3>
+                <h3 style="font-size: 0.7rem; color: var(--neon); margin: 0;">NUEVO HORARIO:</h3>
                 <div style="display:flex; gap:10px;">
-                    <div style="flex:1"><small>Hora Inicio:</small><input type="time" id="in-ini" value="08:00"></div>
-                    <div style="flex:1"><small>Hora Fin:</small><input type="time" id="in-fin" value="08:30"></div>
+                    <div style="flex:1"><small>Hora Encendido:</small><input type="time" id="in-ini" value="08:00"></div>
+                    <div style="flex:1"><small>Hora Apagado:</small><input type="time" id="in-fin" value="08:30"></div>
                 </div>
                 <div>
-                    <small>Válvula:</small>
+                    <small>Electroválvula:</small>
                     <select id="in-pin">
-                        <option value="6">PIN 6</option>
-                        <option value="7">PIN 7</option>
-                        <option value="9">PIN 9</option>
+                        <option value="6">Válvula (Pin 6)</option>
+                        <option value="7">Válvula (Pin 7)</option>
+                        <option value="9">Válvula (Pin 9)</option>
                     </select>
                 </div>
                 <div class="day-selector">
@@ -91,7 +90,7 @@
                     <label><input type="checkbox" value="6">S</label>
                     <label><input type="checkbox" value="0">D</label>
                 </div>
-                <button class="btn-add" onclick="crearProg()">GUARDAR PROGRAMACIÓN</button>
+                <button class="btn-add" onclick="crearProg()">+ GUARDAR EN ARDUINO</button>
             </div>
         </div>
     </div>
@@ -101,20 +100,20 @@
     </div>
 
 <script>
-    // --- DATOS DE CONEXIÓN ACTUALIZADOS ---
+    // --- DATOS DE TU BROKER ---
     const broker = 'wss://1b344346177c415c8fcfd49bcb096fdf.s1.eu.hivemq.cloud:8884/mqtt'; 
     const client = mqtt.connect(broker, { 
         username: 'huertosss', 
-        password: 'blancaym15',
-        clientId: 'web_client_' + Math.random().toString(16).substr(2, 8) 
+        password: 'blancaym15' 
     });
 
-    let dataProgs = JSON.parse(localStorage.getItem('riego_v12')) || [];
+    let dataProgs = JSON.parse(localStorage.getItem('riego_v_final')) || [];
     let modes = { 6: 2, 7: 2, 9: 2 }; 
     let real = { 6: 0, 7: 0, 9: 0 };
     const diasStr = ["D", "L", "M", "X", "J", "V", "S"];
 
     function render() {
+        // Válvulas
         const vBox = document.getElementById('ui-valvulas');
         vBox.innerHTML = '';
         [6, 7, 9].forEach(p => {
@@ -130,6 +129,7 @@
                 </div>`;
         });
 
+        // Lista de programas
         const pBox = document.getElementById('lista-progs');
         pBox.innerHTML = '';
         dataProgs.forEach((p, i) => {
@@ -141,7 +141,7 @@
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
                         <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
-                        <button onclick="delP(${i})" style="background:none; border:none; color:var(--red); cursor:pointer; font-weight:bold;">✖</button>
+                        <button onclick="delP(${i})" style="background:none; border:none; color:var(--red); cursor:pointer;">✖</button>
                     </div>
                 </div>`;
         });
@@ -156,7 +156,8 @@
 
     function crearProg() {
         const dias = Array.from(document.querySelectorAll('.day-selector input:checked')).map(c => parseInt(c.value));
-        if(dias.length === 0) return alert("Selecciona días");
+        if(dias.length === 0) return alert("Selecciona al menos un día");
+        
         dataProgs.push({
             inicio: document.getElementById('in-ini').value,
             fin: document.getElementById('in-fin').value,
@@ -171,15 +172,15 @@
     function delP(i) { dataProgs.splice(i, 1); sync(); }
 
     function sync() {
-        localStorage.setItem('riego_v12', JSON.stringify(dataProgs));
+        localStorage.setItem('riego_v_final', JSON.stringify(dataProgs));
         render();
-        // Solo enviamos los programas ACTIVOS al Arduino
+        // FILTRADO DE MEMORIA: Solo enviamos los programas ACTIVOS al Arduino
         const activos = dataProgs.filter(p => p.activo === true);
         if(client.connected) client.publish('jardin/config', JSON.stringify(activos), { retain: true });
     }
 
     client.on('connect', () => {
-        document.getElementById('mqtt-status').innerText = "CONECTADO A HIVEMQ";
+        document.getElementById('mqtt-status').innerText = "CONECTADO CON ÉXITO";
         document.getElementById('mqtt-status').style.color = "var(--led)";
         client.subscribe(['jardin/estado', 'jardin/temp_log']);
         sync();
