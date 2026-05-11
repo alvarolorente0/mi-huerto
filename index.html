@@ -3,167 +3,210 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SISTEMA DE RIEGO - MKR1000 PRO</title>
+    <title>SISTEMA DE RIEGO PROFESIONAL - MKR1000</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --off: #444; --led-on: #00ffaa; }
-        body { background-color: var(--bg); color: var(--neon); font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --led-on: #00ffaa; --red: #ff4444; }
+        body { background: var(--bg); color: #eee; font-family: 'Segoe UI', sans-serif; padding: 15px; max-width: 800px; margin: auto; }
         
-        /* Dashboard Header */
-        .hero-temp { text-align: center; padding: 30px; margin-bottom: 20px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; box-shadow: 0 0 15px rgba(0, 212, 255, 0.2); }
-        .temp-val { font-size: 5rem; font-weight: 900; margin: 10px 0; }
-        #status-mqtt { font-size: 0.7rem; font-weight: bold; transition: 0.3s; }
+        /* Temperatura */
+        .hero-temp { text-align: center; padding: 25px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; margin-bottom: 20px; }
+        .temp-val { font-size: 5rem; font-weight: 900; color: var(--neon); margin: 10px 0; }
+        #mqtt-status { font-size: 0.7rem; font-weight: bold; }
 
-        /* Tarjetas y Rejilla */
-        .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 20px; margin-bottom: 20px; }
-        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; }
-        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
-        
-        /* Item de Electroválvula */
-        .ev-item { background: #000; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; position: relative; }
-        .valve-icon { width: 50px; height: 50px; fill: var(--off); transition: 0.5s; margin-bottom: 10px; }
-        .valve-icon.active { fill: var(--neon); filter: drop-shadow(0 0 8px var(--neon)); }
-        
-        /* LED de estado físico */
-        .status-led { width: 10px; height: 10px; border-radius: 50%; background-color: #222; margin: 0 auto 15px; transition: 0.3s; }
-        .status-led.on { background-color: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
+        /* Tarjetas */
+        .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; border-bottom: 1px solid #222; padding-bottom: 10px; }
 
-        /* Botonera Triple */
-        .group-btn { display: flex; gap: 4px; background: #111; padding: 4px; border-radius: 8px; }
-        .btn { flex: 1; padding: 10px 5px; cursor: pointer; background: transparent; border: 1px solid transparent; color: #444; border-radius: 6px; font-size: 0.65rem; font-weight: 900; transition: 0.2s; }
+        /* Controles Válvulas */
+        .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        .ev-item { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: center; }
+        .status-led { width: 10px; height: 10px; border-radius: 50%; background: #222; margin: 0 auto 10px; }
+        .status-led.on { background: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
         
-        /* Estados de botones */
-        .btn.active-on { background: rgba(0, 255, 170, 0.1); border-color: var(--led-on); color: var(--led-on); }
-        .btn.active-off { background: rgba(255, 68, 68, 0.1); border-color: #ff4444; color: #ff4444; }
-        .btn.active-auto { background: rgba(0, 212, 255, 0.1); border-color: var(--neon); color: var(--neon); }
+        .btn-group { display: flex; gap: 4px; margin-top: 12px; }
+        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
+        .btn-m.active-on { border-color: var(--led-on); color: var(--led-on); background: rgba(0,255,170,0.1); }
+        .btn-m.active-off { border-color: var(--red); color: var(--red); background: rgba(255,68,68,0.1); }
+        .btn-m.active-auto { border-color: var(--neon); color: var(--neon); background: rgba(0,212,255,0.1); }
+
+        /* Acordeón de Programas */
+        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; border: 1px solid var(--neon); color: var(--neon); font-weight: bold; border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .acc-body { display: none; padding: 15px; background: #0c0c0c; border: 1px solid #222; border-top: none; border-radius: 0 0 10px 10px; }
+        .acc-body.open { display: block; }
         
-        canvas { width: 100% !important; max-height: 150px; }
+        .prog-card { background: #151515; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--neon); display: flex; justify-content: space-between; align-items: center; }
+        .prog-card.inactive { opacity: 0.5; border-left-color: #444; }
+
+        /* Formulario Nuevo Programa */
+        .form-new { display: grid; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #333; }
+        .day-selector { display: flex; justify-content: space-between; gap: 2px; }
+        .day-selector label { font-size: 0.6rem; text-align: center; flex: 1; }
+        input, select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; }
+        .btn-add { background: var(--neon); color: #000; border: none; padding: 10px; font-weight: bold; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="hero-temp">
-        <div style="font-size: 0.7rem; letter-spacing: 4px; color: #555;">MONITOR DE CLIMA</div>
-        <div class="temp-val"><span id="bigTemp">--.-</span>°C</div>
-        <div id="status-mqtt" style="color: #ff4444;">DISPOSITIVO DESCONECTADO</div>
+        <div style="font-size: 0.7rem; letter-spacing: 3px; color: #555;">TEMPERATURA ACTUAL</div>
+        <div class="temp-val"><span id="valTemp">--.-</span>°C</div>
+        <div id="mqtt-status" style="color: var(--red);">BROKER DESCONECTADO</div>
     </div>
 
     <div class="card">
-        <h2>Control de Electroválvulas</h2>
-        <div class="ev-grid" id="valve-container">
+        <h2>Control Manual (Pines 6, 7, 9)</h2>
+        <div class="ev-grid" id="ui-valvulas"></div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <div class="acc-header" onclick="document.getElementById('acc-body').classList.toggle('open')">
+            <span>📅 PROGRAMAS SEMANALES</span>
+            <span id="count-activos" style="font-size: 0.7rem;">0 ACTIVOS</span>
+        </div>
+        <div class="acc-body" id="acc-body">
+            <div id="lista-progs"></div>
+            
+            <div class="form-new">
+                <div style="display:flex; gap:10px;">
+                    <input type="time" id="in-ini" value="08:00" style="flex:1">
+                    <input type="time" id="in-fin" value="08:30" style="flex:1">
+                </div>
+                <select id="in-pin">
+                    <option value="6">PIN 6</option>
+                    <option value="7">PIN 7</option>
+                    <option value="9">PIN 9</option>
+                </select>
+                <div class="day-selector">
+                    <label><input type="checkbox" value="1" checked>L</label>
+                    <label><input type="checkbox" value="2" checked>M</label>
+                    <label><input type="checkbox" value="3" checked>X</label>
+                    <label><input type="checkbox" value="4" checked>J</label>
+                    <label><input type="checkbox" value="5" checked>V</label>
+                    <label><input type="checkbox" value="6">S</label>
+                    <label><input type="checkbox" value="0">D</label>
+                </div>
+                <button class="btn-add" onclick="crearProg()">AÑADIR PROGRAMA</button>
             </div>
+        </div>
     </div>
 
     <div class="card">
-        <h2>Histórico de Temperatura</h2>
-        <canvas id="tempChart"></canvas>
+        <canvas id="tempChart" style="max-height: 120px;"></canvas>
     </div>
 
 <script>
     // --- CONFIGURACIÓN MQTT ---
     const broker = 'wss://TU_ID_AQUÍ.s1.eu.hivemq.cloud:8884/mqtt'; 
-    const options = { username: 'huertosss', password: 'blancaym15' };
-    const client = mqtt.connect(broker, options);
+    const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
 
-    // Estados internos (Sincronizados con el Arduino)
-    let manualModes = { 6: 2, 7: 2, 9: 2 }; // 0:OFF, 1:ON, 2:AUTO
-    let realStates = { 6: 0, 7: 0, 9: 0 };  // Estado físico reportado por el relé
-    let tempData = [];
+    let dataProgs = JSON.parse(localStorage.getItem('progs_riego_vFINAL')) || [];
+    let modes = { 6: 2, 7: 2, 9: 2 }; 
+    let real = { 6: 0, 7: 0, 9: 0 };
+    const diasStr = ["D", "L", "M", "X", "J", "V", "S"];
+
+    // --- LÓGICA DE UI ---
+    function render() {
+        // Válvulas
+        const vBox = document.getElementById('ui-valvulas');
+        vBox.innerHTML = '';
+        [6, 7, 9].forEach(p => {
+            vBox.innerHTML += `
+                <div class="ev-item">
+                    <div class="status-led ${real[p]?'on':''}"></div>
+                    <div style="font-weight:bold; font-size:0.8rem;">VÁLVULA ${p}</div>
+                    <div class="btn-group">
+                        <button class="btn-m ${modes[p]===1?'active-on':''}" onclick="setM(${p},1)">ON</button>
+                        <button class="btn-m ${modes[p]===2?'active-auto':''}" onclick="setM(${p},2)">AUTO</button>
+                        <button class="btn-m ${modes[p]===0?'active-off':''}" onclick="setM(${p},0)">OFF</button>
+                    </div>
+                </div>`;
+        });
+
+        // Programas
+        const pBox = document.getElementById('lista-progs');
+        pBox.innerHTML = '';
+        dataProgs.forEach((p, i) => {
+            pBox.innerHTML += `
+                <div class="prog-card ${!p.activo?'inactive':''}">
+                    <div style="font-size:0.8rem">
+                        <b>${p.inicio}-${p.fin}</b> | PIN ${p.pin}<br>
+                        <small style="color:#666">${p.dias.map(d=>diasStr[d]).join(' ')}</small>
+                    </div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
+                        <button onclick="delP(${i})" style="background:none; border:none; color:var(--red); cursor:pointer;">✖</button>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('count-activos').innerText = dataProgs.filter(x=>x.activo).length + " ACTIVOS";
+    }
+
+    // --- ACCIONES ---
+    function setM(pin, val) {
+        modes[pin] = val;
+        client.publish('jardin/manual', JSON.stringify({ pin, val }));
+        render();
+    }
+
+    function crearProg() {
+        const p = {
+            inicio: document.getElementById('in-ini').value,
+            fin: document.getElementById('in-fin').value,
+            pin: parseInt(document.getElementById('in-pin').value),
+            dias: Array.from(document.querySelectorAll('.day-selector input:checked')).map(c => parseInt(c.value)),
+            activo: true
+        };
+        if(p.dias.length === 0) return alert("Elige algún día");
+        dataProgs.push(p);
+        sync();
+    }
+
+    function toggleP(i) { dataProgs[i].activo = !dataProgs[i].activo; sync(); }
+    function delP(i) { dataProgs.splice(i, 1); sync(); }
+
+    function sync() {
+        localStorage.setItem('progs_riego_vFINAL', JSON.stringify(dataProgs));
+        render();
+        // FILTRO CRÍTICO: Solo enviamos los programas activos al Arduino
+        const soloActivos = dataProgs.filter(p => p.activo === true);
+        client.publish('jardin/config', JSON.stringify(soloActivos), { retain: true });
+    }
+
+    // --- MQTT EVENTOS ---
+    client.on('connect', () => {
+        document.getElementById('mqtt-status').innerText = "SISTEMA EN LÍNEA";
+        document.getElementById('mqtt-status').style.color = "var(--led-on)";
+        client.subscribe(['jardin/estado', 'jardin/temp_log']);
+        sync(); // Sincroniza programas activos al conectar
+    });
+
+    client.on('message', (topic, msg) => {
+        if (topic === 'jardin/estado') {
+            real = JSON.parse(msg.toString());
+            render();
+        } else if (topic === 'jardin/temp_log') {
+            document.getElementById('valTemp').innerText = msg.toString();
+            updateChart(msg.toString());
+        }
+    });
 
     // --- GRÁFICA ---
     const ctx = document.getElementById('tempChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                borderColor: '#00d4ff',
-                backgroundColor: 'rgba(0, 212, 255, 0.05)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            plugins: { legend: false },
-            scales: { 
-                x: { display: false },
-                y: { grid: { color: '#222' }, ticks: { color: '#555' } }
-            }
-        }
+        data: { labels: Array(20).fill(""), datasets: [{ data: [], borderColor: '#00d4ff', tension: 0.4, pointRadius: 0 }] },
+        options: { plugins: { legend: false }, scales: { x: { display: false }, y: { grid: { color: '#222' } } } }
     });
 
-    // --- LÓGICA DE INTERFAZ ---
-    function renderValves() {
-        const container = document.getElementById('valve-container');
-        container.innerHTML = '';
-        
-        [6, 7, 9].forEach(pin => {
-            const isWorking = realStates[pin] === 1;
-            const mode = manualModes[pin];
-
-            const div = document.createElement('div');
-            div.className = 'ev-item';
-            div.innerHTML = `
-                <div class="status-led ${isWorking ? 'on' : ''}"></div>
-                <svg class="valve-icon ${isWorking ? 'active' : ''}" viewBox="0 0 24 24">
-                    <path d="M12,7V3H10V7H5V9H10V11H12V9H17V7H12M13,15V13H11V15H7V21H17V15H13"/>
-                </svg>
-                <div style="font-size: 0.7rem; color: #555; margin-bottom: 12px;">SALIDA PIN ${pin}</div>
-                <div class="group-btn">
-                    <button class="btn ${mode === 1 ? 'active-on' : ''}" onclick="sendCommand(${pin}, 1)">ON</button>
-                    <button class="btn ${mode === 2 ? 'active-auto' : ''}" onclick="sendCommand(${pin}, 2)">AUTO</button>
-                    <button class="btn ${mode === 0 ? 'active-off' : ''}" onclick="sendCommand(${pin}, 0)">OFF</button>
-                </div>
-            `;
-            container.appendChild(div);
-        });
+    function updateChart(v) {
+        chart.data.datasets[0].data.push(v);
+        if(chart.data.datasets[0].data.length > 20) chart.data.datasets[0].data.shift();
+        chart.update();
     }
 
-    function sendCommand(pin, val) {
-        manualModes[pin] = val;
-        // Enviamos el JSON exacto que espera tu Arduino en el tópico "jardin/manual"
-        const payload = JSON.stringify({ pin: pin, val: val });
-        client.publish('jardin/manual', payload);
-        renderValves();
-    }
-
-    // --- CONEXIÓN Y MENSAJES ---
-    client.on('connect', () => {
-        document.getElementById('status-mqtt').innerText = "SISTEMA EN LÍNEA";
-        document.getElementById('status-mqtt').style.color = "#00ffaa";
-        client.subscribe(['jardin/estado', 'jardin/temp_log']);
-    });
-
-    client.on('message', (topic, message) => {
-        const msg = message.toString();
-
-        if (topic === 'jardin/estado') {
-            // El Arduino envía: {"6":0, "7":1, "9":0}
-            realStates = JSON.parse(msg);
-            renderValves();
-        }
-
-        if (topic === 'jardin/temp_log') {
-            const temp = parseFloat(msg);
-            document.getElementById('bigTemp').innerText = temp.toFixed(1);
-            
-            // Actualizar Gráfica
-            chart.data.labels.push("");
-            chart.data.datasets[0].data.push(temp);
-            if (chart.data.labels.length > 30) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-            }
-            chart.update('none');
-        }
-    });
-
-    // Inicializar UI
-    renderValves();
+    render();
 </script>
 </body>
 </html>
