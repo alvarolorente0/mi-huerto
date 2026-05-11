@@ -7,83 +7,55 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --gray: #333; --off: #444; --led-on: #00ffaa; }
-        body { 
-            background-color: var(--bg); color: var(--neon); 
-            font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; 
-        }
-        #ajax-status { position: fixed; top: 10px; right: 10px; font-size: 0.6rem; color: #444; }
-        .hero-temp {
-            text-align: center; padding: 30px; margin-bottom: 20px;
-            background: radial-gradient(circle, #1a1a1a 0%, #050505 100%);
-            border: 2px solid var(--neon); border-radius: 20px;
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
-        }
-        .temp-val { font-size: 5.5rem; font-weight: 900; line-height: 1; margin: 10px 0; }
-        #status-mqtt { font-size: 0.6rem; margin-top: 10px; font-weight: bold; }
+        :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --off: #444; --led-on: #00ffaa; }
+        body { background-color: var(--bg); color: var(--neon); font-family: 'Segoe UI', sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        .hero-temp { text-align: center; padding: 30px; margin-bottom: 20px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; }
+        .temp-val { font-size: 5.5rem; font-weight: 900; margin: 10px 0; }
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
-        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-top: 0; }
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: #666; text-transform: uppercase; }
         .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .ev-item { background: #000; padding: 20px; border-radius: 12px; border: 1px solid #222; text-align: center; }
         .valve-icon { width: 45px; height: 45px; fill: var(--off); transition: 0.5s; }
         .valve-icon.active { fill: var(--neon); filter: drop-shadow(0 0 8px var(--neon)); }
-        .status-led {
-            width: 8px; height: 8px; border-radius: 50%; background-color: #222;
-            margin: 10px auto; transition: 0.3s;
-        }
+        .status-led { width: 8px; height: 8px; border-radius: 50%; background-color: #222; margin: 10px auto; }
         .status-led.on { background-color: var(--led-on); box-shadow: 0 0 10px var(--led-on); }
         .group-btn { display: flex; justify-content: center; gap: 4px; margin-top: 10px; }
-        .btn { 
-            flex: 1; padding: 10px 5px; cursor: pointer; background: #111; 
-            border: 1px solid #333; color: #555; border-radius: 4px; font-size: 0.7rem; font-weight: bold;
-        }
-        .btn.active { border-color: var(--neon); color: var(--neon); background: rgba(0, 212, 255, 0.1); }
-        .acordeon-main { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-        .acordeon-header { padding: 15px 20px; cursor: pointer; display: flex; justify-content: space-between; background: #0a0a0a; }
-        .acordeon-content { display: none; padding: 15px; background: #080808; border-top: 1px solid #222; }
-        .acordeon-main.open .acordeon-content { display: block; }
-        .prog-row { background: #151515; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid var(--neon); }
-        .prog-row.disabled { opacity: 0.3; filter: grayscale(1); }
-        .switch { position: relative; display: inline-block; width: 34px; height: 18px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; border-radius: 20px; transition: .3s; }
-        input:checked + .slider { background-color: var(--neon); }
-        .btn-add { width: 100%; border: 1px dashed var(--neon); color: var(--neon); background: transparent; padding: 12px; border-radius: 8px; cursor: pointer; }
+        .btn { flex: 1; padding: 8px 2px; cursor: pointer; background: #111; border: 1px solid #333; color: #555; border-radius: 4px; font-size: 0.6rem; font-weight: bold; }
+        .btn.active-on { border-color: var(--led-on); color: var(--led-on); }
+        .btn.active-auto { border-color: var(--neon); color: var(--neon); }
+        .btn.active-off { border-color: #ff4444; color: #ff4444; }
+        .prog-row { background: #151515; padding: 10px; border-radius: 8px; margin-bottom: 5px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; }
+        .btn-add { width: 100%; border: 1px dashed var(--neon); color: var(--neon); background: transparent; padding: 10px; border-radius: 8px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div id="ajax-status">SISTEMA EN LINEA</div>
+
     <div class="hero-temp">
-        <div style="font-size: 0.7rem; letter-spacing: 4px; color: #555;">MONITOR DE RIEGO ACTIVO</div>
+        <div style="font-size: 0.7rem; letter-spacing: 4px; color: #555;">TEMPERATURA JARDÍN</div>
         <div class="temp-val"><span id="bigTemp">--.-</span>°</div>
-        <div id="status-mqtt" style="color: #ff4444;">BROKER DESCONECTADO</div>
+        <div id="status-mqtt" style="color: #ff4444; font-size: 0.7rem;">BROKER DESCONECTADO</div>
     </div>
+
     <div class="card">
-        <h2>Estado de Salidas</h2>
-        <div class="ev-grid" id="manual-ui"></div>
+        <h2>Control de Salidas (Manual / Auto)</h2>
+        <div class="ev-grid" id="valve-ui"></div>
     </div>
-    <div class="acordeon-main" id="accProgramas">
-        <div class="acordeon-header" onclick="this.parentElement.classList.toggle('open')">
-            <span>📅 PROGRAMAS DE RIEGO</span>
-            <span id="prog-count" style="font-size: 0.8rem; color: var(--neon);">0 ACTIVOS</span>
-        </div>
-        <div class="acordeon-content">
-            <div id="listaProgramas"></div>
-            <button class="btn-add" onclick="crearPrograma()">+ AGREGAR PROGRAMA NUEVO</button>
-        </div>
-    </div>
+
     <div class="card">
-        <h2>Histórico Temperatura</h2>
-        <canvas id="tempChart" style="max-height: 140px;"></canvas>
+        <h2>📅 Programación (Config)</h2>
+        <div id="listaProgramas"></div>
+        <button class="btn-add" onclick="agregarPrograma()">+ AGREGAR BLOQUE DE RIEGO</button>
+    </div>
+
+    <div class="card">
+        <canvas id="tempChart" style="max-height: 120px;"></canvas>
     </div>
 
 <script>
+    // --- CONFIGURACIÓN ---
+    // IMPORTANTE: Cambia "TU_ID_AQUÍ" por el de tu instancia de HiveMQ
     const broker = 'wss://TU_ID_AQUÍ.s1.eu.hivemq.cloud:8884/mqtt';
-    const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
+    const options = { username: 'huertosss', password: 'blancaym15' };
+    const client = mqtt.connect(broker, options);
 
-    let programas = JSON.parse(localStorage.getItem('riego_v4')) || [];
-    let logs = JSON.parse(localStorage.getItem('temp_v4')) || [];
-    let manualStates = JSON.parse(localStorage.getItem('manual_states')) || { 6: 2, 7: 2, 9: 2 }; 
-    let realStates = { 6: 0, 7: 0, 9: 0 };
-
-    const VALVE_SVG = `<svg class="valve-icon" viewBox="0 0 24 24"><path d="M12,7V3H10V7H5V9H10V11H12V9H17V7H12M13,15V13H11V15H7V21H17V15H13M15,19H
+    let
