@@ -2,157 +2,180 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>RiegoSmart PRO</title>
+    <title>RiegoSmart Ultimate</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
     <style>
-        body { background: #0b0e11; color: #e9ecef; font-family: 'Segoe UI', sans-serif; }
-        .card-custom { background: #1a1d21; border: 1px solid #343a40; border-radius: 15px; padding: 20px; margin-bottom: 20px; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .bg-offline { background: #ff4757; box-shadow: 0 0 8px #ff4757; }
-        .bg-online { background: #2ed573; box-shadow: 0 0 8px #2ed573; }
-        .bg-connecting { background: #ffa502; box-shadow: 0 0 8px #ffa502; }
-        /* ... (resto de estilos iguales al anterior) ... */
-        .btn-mode { border: 1px solid #495057; color: #adb5bd; width: 100%; margin-bottom: 5px; }
-        .btn-mode.active-on { background: #28a745; color: white; border-color: #28a745; }
-        .btn-mode.active-off { background: #dc3545; color: white; border-color: #dc3545; }
-        .btn-mode.active-auto { background: #007bff; color: white; border-color: #007bff; }
-        .day-check { display: none; }
-        .day-label { cursor: pointer; padding: 5px 10px; border: 1px solid #444; border-radius: 5px; font-size: 12px; }
-        .day-check:checked + .day-label { background: #00f2ff; color: #000; }
+        body { background: #0f1216; color: #f8f9fa; font-family: 'Inter', sans-serif; }
+        .card-glass { background: #1a1e23; border: 1px solid #2d3436; border-radius: 15px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .status-badge { font-size: 0.7rem; padding: 4px 8px; border-radius: 20px; }
+        .valve-card { position: relative; transition: 0.3s; }
+        .active-indicator { position: absolute; top: 10px; right: 10px; font-size: 20px; color: #444; }
+        .active-indicator.on { color: #ffce00; text-shadow: 0 0 10px #ffce00; }
+        .temp-display { font-size: 3rem; font-weight: bold; color: #00f2ff; }
+        .btn-mode { font-size: 11px; margin: 2px; border: 1px solid #444; color: #aaa; background: transparent; }
+        .btn-mode.active { background: #007bff; color: white; border-color: #007bff; }
+        .accordion-item { background: #252a30; border-color: #3d444b; }
+        .accordion-button { background: #252a30; color: white; }
     </style>
 </head>
 <body class="container py-4">
-    <!-- BARRA DE ESTADO -->
+    
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="text-info m-0">RIEGOSMART <small class="text-muted">v2.1</small></h2>
-        <div class="card-custom py-2 px-3 m-0">
-            <span id="conn-dot" class="status-dot bg-offline"></span>
-            <span id="conn-text" class="small">Desconectado</span>
+        <div>
+            <h1 class="h3 mb-0 text-info font-monospace">RIEGOSMART <span class="badge bg-dark border border-info">PRO</span></h1>
+            <span id="conn-status" class="status-badge bg-danger">DESCONECTADO</span>
+        </div>
+        <div class="text-end">
+            <div class="small text-muted">Temp. Actual</div>
+            <div class="temp-display" id="currTemp">--°C</div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-4"><div id="valves-container"></div></div>
-        <div class="col-md-8">
-            <div class="card-custom">
-                <div class="d-flex justify-content-between mb-3">
-                    <h5>Programas Semanales</h5>
-                    <button class="btn btn-sm btn-outline-info" onclick="addProgram()">+ Nuevo</button>
-                </div>
-                <div id="programList"></div>
+    <div class="row g-4">
+        <!-- Gráfica -->
+        <div class="col-lg-8">
+            <div class="card-glass">
+                <h6 class="mb-3 text-muted">Historial de Temperatura</h6>
+                <canvas id="tempChart" height="140"></canvas>
             </div>
         </div>
+
+        <!-- Válvulas -->
+        <div class="col-lg-4">
+            <div id="valves-container" class="row g-2"></div>
+        </div>
+    </div>
+
+    <!-- Desplegable de Programas -->
+    <div class="card-glass mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="m-0">📅 Programas de Riego</h5>
+            <button class="btn btn-info btn-sm" onclick="addProgram()">+ Añadir Programa</button>
+        </div>
+        <div class="accordion" id="progAccordion"></div>
     </div>
 
     <script>
         const BROKER = "wss://4f497890d218456aa4de0965d267c8e9.s1.eu.hivemq.cloud:8884/mqtt";
-        const client = mqtt.connect(BROKER, { 
-            username: 'mqtt_user', 
-            password: 'Mqtt_user1',
-            clientId: 'WebDashboard_' + Math.random().toString(16).substr(2, 8)
-        });
+        const client = mqtt.connect(BROKER, { username: 'mqtt_user', password: 'Mqtt_user1' });
 
-        const dot = document.getElementById('conn-dot');
-        const txt = document.getElementById('conn-text');
+        let programs = JSON.parse(localStorage.getItem('riego_v3')) || [];
+        let tempHistory = [];
 
-        // GESTIÓN DE ESTADOS DE CONEXIÓN
+        // Conexión
         client.on('connect', () => {
-            dot.className = "status-dot bg-online";
-            txt.innerText = "HiveMQ Online";
-            console.log("Conectado a HiveMQ");
+            document.getElementById('conn-status').className = "status-badge bg-success";
+            document.getElementById('conn-status').innerText = "ONLINE (HIVEMQ)";
+            client.subscribe('riego/telemetria');
         });
 
-        client.on('reconnect', () => {
-            dot.className = "status-dot bg-connecting";
-            txt.innerText = "Reconectando...";
+        // Recibir Datos
+        client.on('message', (topic, payload) => {
+            if(topic === 'riego/telemetria') {
+                const data = JSON.parse(payload);
+                document.getElementById('currTemp').innerText = data.t.toFixed(1) + "°C";
+                updateChart(data.t);
+                // Actualizar rayos indicadores
+                data.s.forEach((on, i) => {
+                    document.getElementById(`ind-${i+1}`).className = on ? "active-indicator on" : "active-indicator";
+                });
+            }
         });
 
-        client.on('close', () => {
-            dot.className = "status-dot bg-offline";
-            txt.innerText = "Desconectado";
-        });
-
-        // (Resto de la lógica de programas y válvulas del mensaje anterior...)
-        let programs = JSON.parse(localStorage.getItem('riego_progs')) || [];
-        let valveModes = [0, 0, 0];
-
+        // Interfaz de Válvulas
         const vContainer = document.getElementById('valves-container');
         for(let i=1; i<=3; i++) {
             vContainer.innerHTML += `
-                <div class="card-custom text-center">
-                    <h6>Válvula ${i}</h6>
-                    <div class="btn-group-vertical w-100">
-                        <button id="v${i}-on" onclick="setMode(${i}, 1)" class="btn btn-mode">ON</button>
-                        <button id="v${i}-off" onclick="setMode(${i}, 0)" class="btn btn-mode active-off">OFF</button>
-                        <button id="v${i}-auto" onclick="setMode(${i}, 2)" class="btn btn-mode">AUTO</button>
+                <div class="col-12">
+                    <div class="card-glass valve-card py-2">
+                        <span id="ind-${i}" class="active-indicator">⚡</span>
+                        <div class="small text-muted mb-2">Salida ${i}</div>
+                        <div class="btn-group w-100">
+                            <button id="v${i}-0" onclick="setMode(${i}, 0)" class="btn btn-mode active">OFF</button>
+                            <button id="v${i}-1" onclick="setMode(${i}, 1)" class="btn btn-mode">ON</button>
+                            <button id="v${i}-2" onclick="setMode(${i}, 2)" class="btn btn-mode">AUTO</button>
+                        </div>
                     </div>
                 </div>`;
         }
 
         function setMode(v, modo) {
-            valveModes[v-1] = modo;
-            ['on', 'off', 'auto'].forEach(m => document.getElementById(`v${v}-${m}`).classList.remove('active-on', 'active-off', 'active-auto'));
-            const suffix = modo === 1 ? 'on' : modo === 0 ? 'off' : 'auto';
-            document.getElementById(`v${v}-${suffix}`).classList.add('active-' + suffix);
+            [0,1,2].forEach(m => document.getElementById(`v${v}-${m}`).classList.toggle('active', m === modo));
             client.publish('riego/control', JSON.stringify({v: v, modo: modo}));
         }
 
+        // Gráfica
+        const ctx = document.getElementById('tempChart');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: Array(20).fill(''), datasets: [{ label: 'Temp', data: [], borderColor: '#00f2ff', tension: 0.4 }] },
+            options: { plugins: { legend: {display:false} }, scales: { x:{display:false}, y:{grid:{color:'#333'}} } }
+        });
+
+        function updateChart(t) {
+            if(tempHistory.length > 20) tempHistory.shift();
+            tempHistory.push(t);
+            chart.data.datasets[0].data = tempHistory;
+            chart.update();
+        }
+
+        // Programas
+        function renderPrograms() {
+            const acc = document.getElementById('progAccordion');
+            acc.innerHTML = '';
+            programs.forEach((p, idx) => {
+                acc.innerHTML += `
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c-${idx}">
+                            Programa #${idx+1} (${p.start} - ${p.end}) 
+                            <span class="ms-2 badge ${p.enabled?'bg-success':'bg-secondary'}">${p.enabled?'Activo':'Pausado'}</span>
+                        </button>
+                    </h2>
+                    <div id="c-${idx}" class="accordion-collapse collapse" data-bs-parent="#progAccordion">
+                        <div class="accordion-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" ${p.enabled?'checked':''} onchange="updateProg(${idx}, 'enabled', this.checked)">
+                                        <label class="form-check-label">Habilitar</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">Inicio: <input type="time" class="form-control form-control-sm bg-dark text-white border-0" value="${p.start}" onchange="updateProg(${idx}, 'start', this.value)"></div>
+                                <div class="col-md-3">Fin: <input type="time" class="form-control form-control-sm bg-dark text-white border-0" value="${p.end}" onchange="updateProg(${idx}, 'end', this.value)"></div>
+                                <div class="col-md-3 text-end"><button class="btn btn-outline-danger btn-sm" onclick="removeProg(${idx})">Eliminar</button></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            localStorage.setItem('riego_v3', JSON.stringify(programs));
+        }
+
         function addProgram() {
-            programs.push({ id: Date.now(), days: [1], start: "08:00", end: "08:10", valves: [true, false, false] });
+            programs.push({ enabled: true, start: "08:00", end: "08:15", valves: [true, false, false], days: [1,2,3,4,5] });
             renderPrograms();
         }
+        function updateProg(idx, key, val) { programs[idx][key] = val; renderPrograms(); }
+        function removeProg(idx) { programs.splice(idx, 1); renderPrograms(); }
 
-        function renderPrograms() {
-            const list = document.getElementById('programList');
-            list.innerHTML = '';
-            programs.forEach((p, idx) => {
-                list.innerHTML += `
-                    <div class="card-custom mb-2 border-secondary">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-12 mb-2">
-                                ${['D','L','M','X','J','V','S'].map((d, i) => `
-                                    <input type="checkbox" class="day-check" id="d-${idx}-${i}" ${p.days.includes(i)?'checked':''} onchange="updateProg(${idx}, 'days', ${i})">
-                                    <label class="day-label" for="d-${idx}-${i}">${d}</label>
-                                `).join('')}
-                            </div>
-                            <div class="col-md-3"><input type="time" value="${p.start}" class="form-control form-control-sm bg-dark text-white" onchange="updateProg(${idx}, 'start', this.value)"></div>
-                            <div class="col-md-3"><input type="time" value="${p.end}" class="form-control form-control-sm bg-dark text-white" onchange="updateProg(${idx}, 'end', this.value)"></div>
-                            <div class="col-md-4 text-center">
-                                ${[0,1,2].map(v => `
-                                    <button class="btn btn-xs ${p.valves[v]?'btn-primary':'btn-outline-secondary'}" style="font-size:10px" onclick="toggleProgValve(${idx}, ${v})">V${v+1}</button>
-                                `).join('')}
-                            </div>
-                            <div class="col-md-2"><button class="btn btn-danger btn-sm w-100" onclick="removeProg(${idx})">🗑</button></div>
-                        </div>
-                    </div>`;
-            });
-            localStorage.setItem('riego_progs', JSON.stringify(programs));
-        }
-
+        // Motor de Riego
         setInterval(() => {
             const now = new Date();
-            const day = now.getDay();
             const time = now.getHours().toString().padStart(2, '0') + ":" + now.getMinutes().toString().padStart(2, '0');
-            let auto_exec = [false, false, false];
+            let auto = [false, false, false];
             programs.forEach(p => {
-                if(p.days.includes(day) && time >= p.start && time < p.end) {
-                    p.valves.forEach((vActive, i) => { if(vActive) auto_exec[i] = true; });
+                if(p.enabled && time >= p.start && time < p.end) {
+                    p.valves.forEach((v, i) => { if(v) auto[i] = true; });
                 }
             });
-            if(client.connected) client.publish('riego/control', JSON.stringify({auto_exec: auto_exec}));
+            if(client.connected) client.publish('riego/control', JSON.stringify({auto_exec: auto}));
         }, 5000);
 
-        function updateProg(idx, key, val) {
-            if(key === 'days') {
-                const pos = programs[idx].days.indexOf(val);
-                pos === -1 ? programs[idx].days.push(val) : programs[idx].days.splice(pos, 1);
-            } else { programs[idx][key] = val; }
-            renderPrograms();
-        }
-        function toggleProgValve(idx, vIdx) { programs[idx].valves[vIdx] = !programs[idx].valves[vIdx]; renderPrograms(); }
-        function removeProg(idx) { programs.splice(idx, 1); renderPrograms(); }
         renderPrograms();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
