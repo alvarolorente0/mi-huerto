@@ -29,6 +29,8 @@
         .day-selector { display: flex; justify-content: space-between; }
         input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 5px; }
         .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+        
+        /* Estilos para los items de programación */
         .prog-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333; }
         .btn-del { background: transparent; border: none; color: var(--red); font-size: 1.1rem; cursor: pointer; font-weight: bold; padding: 5px 10px; }
     </style>
@@ -68,21 +70,13 @@
     <script>
         const broker = 'wss://1b344346177c415c8fcfd49bcb096fdf.s1.eu.hivemq.cloud:8884/mqtt';
         const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
-        
-        // RECUPERAR DATOS AL CARGAR
         let dataProgs = JSON.parse(localStorage.getItem('riego_v15')) || [];
-        let modes = JSON.parse(localStorage.getItem('riego_modos')) || { 6: 2, 7: 2, 9: 2 }; 
-        let real = { 6: 0, 7: 0, 9: 0 };
+        let modes = { 6: 2, 7: 2, 9: 2 }; let real = { 6: 0, 7: 0, 9: 0 };
 
         client.on('connect', () => {
             document.getElementById('mqtt-status').innerText = "CONECTADO";
             document.getElementById('mqtt-status').style.color = "var(--led)";
             client.subscribe(['jardin/estado', 'jardin/temp_log']);
-            
-            // Al conectar, enviamos los modos guardados al MKR1000 para sincronizar hardware
-            [6, 7, 9].forEach(p => {
-                client.publish('jardin/manual', JSON.stringify({pin:p, val:modes[p]}));
-            });
             sync();
         });
 
@@ -92,7 +86,72 @@
         });
 
         function render() {
+            // Render Válvulas
             const vBox = document.getElementById('ui-valvulas'); vBox.innerHTML = '';
             [6, 7, 9].forEach(p => {
                 vBox.innerHTML += `<div class="ev-item">
-                    <div class="status-led ${real
+                    <div class="status-led ${real[p]?'on':''}"></div>
+                    <b>VALV ${p}</b>
+                    <div class="btn-group">
+                        <button class="btn-m ${modes[p]===1?'active-on':''}" onclick="setM(${p},1)">ON</button>
+                        <button class="btn-m ${modes[p]===2?'active-auto':''}" onclick="setM(${p},2)">AUTO</button>
+                        <button class="btn-m ${modes[p]===0?'active-off':''}" onclick="setM(${p},0)">OFF</button>
+                    </div>
+                </div>`;
+            });
+
+            // Render Programaciones con botón borrar
+            const pBox = document.getElementById('lista-progs'); pBox.innerHTML = '';
+            document.getElementById('count-activos').innerText = dataProgs.filter(p => p.activo).length;
+
+            dataProgs.forEach((p, i) => {
+                pBox.innerHTML += `
+                <div class="prog-item">
+                    <div style="flex-grow:1">
+                        <small style="color:var(--neon); font-weight:bold;">${p.inicio} - ${p.fin}</small>
+                        <br>
+                        <small style="color:#888; font-size:0.7rem;">Pin ${p.pin} | Días: ${p.dias.join(',')}</small>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
+                        <button class="btn-del" onclick="borrarProg(${i})">✕</button>
+                    </div>
+                </div>`;
+            });
+        }
+
+        function setM(p, v) { modes[p] = v; client.publish('jardin/manual', JSON.stringify({pin:p, val:v})); render(); }
+        
+        function crearProg() {
+            const d = Array.from(document.querySelectorAll('#day-sel input:checked')).map(c => parseInt(c.value));
+            if(d.length === 0) { alert("Selecciona al menos un día"); return; }
+            dataProgs.push({ 
+                inicio: document.getElementById('in-ini').value, 
+                fin: document.getElementById('in-fin').value, 
+                pin: parseInt(document.getElementById('in-pin').value), 
+                dias: d, 
+                activo: true 
+            });
+            sync();
+        }
+
+        function borrarProg(i) {
+            dataProgs.splice(i, 1);
+            sync();
+        }
+
+        function toggleP(i) { 
+            dataProgs[i].activo = !dataProgs[i].activo; 
+            sync(); 
+        }
+
+        function sync() {
+            localStorage.setItem('riego_v15', JSON.stringify(dataProgs));
+            render();
+            client.publish('jardin/config', JSON.stringify(dataProgs.filter(p => p.activo)), { retain: true });
+        }
+
+        render();
+    </script>
+</body>
+</html>
