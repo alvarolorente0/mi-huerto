@@ -29,6 +29,10 @@
         .day-selector { display: flex; justify-content: space-between; }
         input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 5px; }
         .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+        
+        /* Estilos para los items de programación */
+        .prog-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333; }
+        .btn-del { background: transparent; border: none; color: var(--red); font-size: 1.1rem; cursor: pointer; font-weight: bold; padding: 5px 10px; }
     </style>
 </head>
 <body>
@@ -58,7 +62,7 @@
                     <label><input type="checkbox" value="5">V</label><label><input type="checkbox" value="6">S</label>
                     <label><input type="checkbox" value="0">D</label>
                 </div>
-                <button class="btn-add" onclick="crearProg()">GUARDAR</button>
+                <button class="btn-add" onclick="crearProg()">GUARDAR NUEVO HORARIO</button>
             </div>
         </div>
     </div>
@@ -82,6 +86,7 @@
         });
 
         function render() {
+            // Render Válvulas
             const vBox = document.getElementById('ui-valvulas'); vBox.innerHTML = '';
             [6, 7, 9].forEach(p => {
                 vBox.innerHTML += `<div class="ev-item">
@@ -94,27 +99,58 @@
                     </div>
                 </div>`;
             });
+
+            // Render Programaciones con botón borrar
             const pBox = document.getElementById('lista-progs'); pBox.innerHTML = '';
+            document.getElementById('count-activos').innerText = dataProgs.filter(p => p.activo).length;
+
             dataProgs.forEach((p, i) => {
-                pBox.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:5px; background:#222; padding:5px; border-radius:5px;">
-                    <small>${p.inicio}-${p.fin} (Pin ${p.pin})</small>
-                    <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
+                pBox.innerHTML += `
+                <div class="prog-item">
+                    <div style="flex-grow:1">
+                        <small style="color:var(--neon); font-weight:bold;">${p.inicio} - ${p.fin}</small>
+                        <br>
+                        <small style="color:#888; font-size:0.7rem;">Pin ${p.pin} | Días: ${p.dias.join(',')}</small>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
+                        <button class="btn-del" onclick="borrarProg(${i})">✕</button>
+                    </div>
                 </div>`;
             });
         }
 
         function setM(p, v) { modes[p] = v; client.publish('jardin/manual', JSON.stringify({pin:p, val:v})); render(); }
+        
         function crearProg() {
             const d = Array.from(document.querySelectorAll('#day-sel input:checked')).map(c => parseInt(c.value));
-            dataProgs.push({ inicio: document.getElementById('in-ini').value, fin: document.getElementById('in-fin').value, pin: parseInt(document.getElementById('in-pin').value), dias: d, activo: true });
+            if(d.length === 0) { alert("Selecciona al menos un día"); return; }
+            dataProgs.push({ 
+                inicio: document.getElementById('in-ini').value, 
+                fin: document.getElementById('in-fin').value, 
+                pin: parseInt(document.getElementById('in-pin').value), 
+                dias: d, 
+                activo: true 
+            });
             sync();
         }
-        function toggleP(i) { dataProgs[i].activo = !dataProgs[i].activo; sync(); }
+
+        function borrarProg(i) {
+            dataProgs.splice(i, 1);
+            sync();
+        }
+
+        function toggleP(i) { 
+            dataProgs[i].activo = !dataProgs[i].activo; 
+            sync(); 
+        }
+
         function sync() {
             localStorage.setItem('riego_v15', JSON.stringify(dataProgs));
             render();
             client.publish('jardin/config', JSON.stringify(dataProgs.filter(p => p.activo)), { retain: true });
         }
+
         render();
     </script>
 </body>
