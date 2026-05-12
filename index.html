@@ -5,40 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RIEGO PRO - MKR1000</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --neon: #00d4ff; --bg: #050505; --card: #121212; --led: #00ffaa; --red: #ff4444; }
         body { background: var(--bg); color: #eee; font-family: 'Segoe UI', sans-serif; padding: 15px; max-width: 800px; margin: auto; }
+        
         .hero-temp { text-align: center; padding: 20px; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border: 2px solid var(--neon); border-radius: 20px; margin-bottom: 20px; }
         .temp-val { font-size: 4.5rem; font-weight: 900; color: var(--neon); margin: 5px 0; }
+        #mqtt-status { font-size: 0.8rem; font-weight: bold; margin-bottom: 10px; }
+
         .card { background: var(--card); border: 1px solid #222; border-radius: 15px; padding: 18px; margin-bottom: 20px; }
         .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .ev-item { background: #000; padding: 15px; border-radius: 12px; border: 1px solid #333; text-align: center; }
-        .status-led { width: 12px; height: 12px; border-radius: 50%; background: #222; margin: 0 auto 10px; }
-        .status-led.on { background: var(--led); box-shadow: 0 0 10px var(--led); }
+        .status-led { width: 12px; height: 12px; border-radius: 50%; background: #222; margin: 0 auto 10px; transition: 0.3s; }
+        .status-led.on { background: var(--led); box-shadow: 0 0 15px var(--led); }
+        
         .btn-group { display: flex; gap: 4px; margin-top: 12px; }
-        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: bold; }
-        .btn-m.active-on { border-color: var(--led); color: var(--led); }
-        .btn-m.active-off { border-color: var(--red); color: var(--red); }
-        .btn-m.active-auto { border-color: var(--neon); color: var(--neon); }
+        .btn-m { flex: 1; padding: 10px 2px; border: 1px solid #333; background: #111; color: #555; border-radius: 6px; cursor: pointer; font-size: 0.7rem; font-weight: bold; transition: 0.2s; }
+        .btn-m.active-on { border-color: var(--led); color: var(--led); background: #003322; }
+        .btn-m.active-off { border-color: var(--red); color: var(--red); background: #330000; }
+        .btn-m.active-auto { border-color: var(--neon); color: var(--neon); background: #002233; }
+
         .acc-container { border: 1px solid var(--neon); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
-        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; color: var(--neon); font-weight: bold; border: none; cursor: pointer; display: flex; justify-content: space-between; }
+        .acc-header { width: 100%; padding: 15px; background: #1a1a1a; color: var(--neon); font-weight: bold; border: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .acc-body { display: none; padding: 15px; background: #0c0c0c; border-top: 1px solid #222; }
         .acc-body.open { display: block; }
-        .form-new { display: grid; gap: 10px; margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; }
-        .day-selector { display: flex; justify-content: space-between; }
-        input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 5px; }
-        .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; }
+
+        .form-new { display: grid; gap: 10px; margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; border: 1px solid #222; }
+        .day-selector { display: flex; justify-content: space-between; padding: 5px 0; }
+        input[type="time"], select { background: #000; border: 1px solid #444; color: white; padding: 8px; border-radius: 5px; width: 100%; }
+        .btn-add { background: var(--neon); color: #000; border: none; padding: 12px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 5px; }
         
-        /* Estilos para los items de programación */
-        .prog-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #333; }
-        .btn-del { background: transparent; border: none; color: var(--red); font-size: 1.1rem; cursor: pointer; font-weight: bold; padding: 5px 10px; }
+        .prog-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #1a1a1a; padding: 12px; border-radius: 8px; border: 1px solid #333; }
+        .btn-del { background: transparent; border: none; color: var(--red); font-size: 1.2rem; cursor: pointer; padding: 0 10px; }
     </style>
 </head>
 <body>
+
     <div class="hero-temp">
-        <div id="mqtt-status" style="font-size: 0.7rem; color: var(--red);">DESCONECTADO</div>
+        <div id="mqtt-status" style="color: var(--red);">● SISTEMA DESCONECTADO</div>
         <div class="temp-val"><span id="valTemp">--.-</span>°C</div>
+        <small style="color: #666;">LECTURA MKR1000</small>
     </div>
 
     <div class="card">
@@ -47,91 +53,120 @@
 
     <div class="acc-container">
         <button class="acc-header" onclick="document.getElementById('acc-body').classList.toggle('open')">
-            <span>📅 PROGRAMACIÓN</span>
-            <span id="count-activos">0</span>
+            <span>📅 PROGRAMACIÓN SEMANAL</span>
+            <span id="count-activos" style="background: var(--neon); color: #000; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">0</span>
         </button>
         <div class="acc-body" id="acc-body">
             <div id="lista-progs"></div>
+            
             <div class="form-new">
-                <input type="time" id="in-ini" value="08:00">
-                <input type="time" id="in-fin" value="08:30">
-                <select id="in-pin"><option value="6">PIN 6</option><option value="7">PIN 7</option><option value="9">PIN 9</option></select>
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;"><small>Inicio:</small><input type="time" id="in-ini" value="08:00"></div>
+                    <div style="flex: 1;"><small>Fin:</small><input type="time" id="in-fin" value="08:30"></div>
+                </div>
+                <select id="in-pin">
+                    <option value="6">PIN 6 (Válvula 1)</option>
+                    <option value="7">PIN 7 (Válvula 2)</option>
+                    <option value="9">PIN 9 (Válvula 3)</option>
+                </select>
                 <div class="day-selector" id="day-sel">
-                    <label><input type="checkbox" value="1">L</label><label><input type="checkbox" value="2">M</label>
-                    <label><input type="checkbox" value="3">X</label><label><input type="checkbox" value="4">J</label>
-                    <label><input type="checkbox" value="5">V</label><label><input type="checkbox" value="6">S</label>
+                    <label><input type="checkbox" value="1">L</label>
+                    <label><input type="checkbox" value="2">M</label>
+                    <label><input type="checkbox" value="3">X</label>
+                    <label><input type="checkbox" value="4">J</label>
+                    <label><input type="checkbox" value="5">V</label>
+                    <label><input type="checkbox" value="6">S</label>
                     <label><input type="checkbox" value="0">D</label>
                 </div>
-                <button class="btn-add" onclick="crearProg()">GUARDAR NUEVO HORARIO</button>
+                <button class="btn-add" onclick="crearProg()">GUARDAR HORARIO</button>
             </div>
         </div>
     </div>
 
     <script>
+        // DATOS INTEGRADOS
         const broker = 'wss://1b344346177c415c8fcfd49bcb096fdf.s1.eu.hivemq.cloud:8884/mqtt';
-        const client = mqtt.connect(broker, { username: 'huertosss', password: 'blancaym15' });
+        const options = { 
+            username: 'huertosss', 
+            password: 'blancaym15',
+            clientId: 'WEB_CLIENT_' + Math.random().toString(16).substr(2, 8)
+        };
+
+        const client = mqtt.connect(broker, options);
         let dataProgs = JSON.parse(localStorage.getItem('riego_v15')) || [];
-        let modes = { 6: 2, 7: 2, 9: 2 }; let real = { 6: 0, 7: 0, 9: 0 };
+        let modes = { 6: 2, 7: 2, 9: 2 }; 
+        let real = { 6: 0, 7: 0, 9: 0 };  
+        const nombresDias = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
         client.on('connect', () => {
-            document.getElementById('mqtt-status').innerText = "CONECTADO";
+            document.getElementById('mqtt-status').innerText = "● SISTEMA CONECTADO";
             document.getElementById('mqtt-status').style.color = "var(--led)";
             client.subscribe(['jardin/estado', 'jardin/temp_log']);
-            sync();
+            sync(); 
         });
 
-        client.on('message', (t, m) => {
-            if (t === 'jardin/estado') { real = JSON.parse(m.toString()); render(); }
-            if (t === 'jardin/temp_log') { document.getElementById('valTemp').innerText = m.toString(); }
+        client.on('message', (topic, message) => {
+            if (topic === 'jardin/estado') {
+                real = JSON.parse(message.toString());
+                render();
+            }
+            if (topic === 'jardin/temp_log') {
+                document.getElementById('valTemp').innerText = message.toString();
+            }
         });
 
         function render() {
-            // Render Válvulas
-            const vBox = document.getElementById('ui-valvulas'); vBox.innerHTML = '';
+            const vBox = document.getElementById('ui-valvulas');
+            vBox.innerHTML = '';
             [6, 7, 9].forEach(p => {
-                vBox.innerHTML += `<div class="ev-item">
-                    <div class="status-led ${real[p]?'on':''}"></div>
-                    <b>VALV ${p}</b>
-                    <div class="btn-group">
-                        <button class="btn-m ${modes[p]===1?'active-on':''}" onclick="setM(${p},1)">ON</button>
-                        <button class="btn-m ${modes[p]===2?'active-auto':''}" onclick="setM(${p},2)">AUTO</button>
-                        <button class="btn-m ${modes[p]===0?'active-off':''}" onclick="setM(${p},0)">OFF</button>
-                    </div>
-                </div>`;
+                vBox.innerHTML += `
+                    <div class="ev-item">
+                        <div class="status-led ${real[p] ? 'on' : ''}"></div>
+                        <b>PIN ${p}</b>
+                        <div class="btn-group">
+                            <button class="btn-m ${modes[p] === 1 ? 'active-on' : ''}" onclick="setM(${p},1)">ON</button>
+                            <button class="btn-m ${modes[p] === 2 ? 'active-auto' : ''}" onclick="setM(${p},2)">AUTO</button>
+                            <button class="btn-m ${modes[p] === 0 ? 'active-off' : ''}" onclick="setM(${p},0)">OFF</button>
+                        </div>
+                    </div>`;
             });
 
-            // Render Programaciones con botón borrar
-            const pBox = document.getElementById('lista-progs'); pBox.innerHTML = '';
+            const pBox = document.getElementById('lista-progs');
+            pBox.innerHTML = '';
             document.getElementById('count-activos').innerText = dataProgs.filter(p => p.activo).length;
 
             dataProgs.forEach((p, i) => {
+                const diasLegibles = p.dias.map(d => nombresDias[d]).join(', ');
                 pBox.innerHTML += `
-                <div class="prog-item">
-                    <div style="flex-grow:1">
-                        <small style="color:var(--neon); font-weight:bold;">${p.inicio} - ${p.fin}</small>
-                        <br>
-                        <small style="color:#888; font-size:0.7rem;">Pin ${p.pin} | Días: ${p.dias.join(',')}</small>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <input type="checkbox" ${p.activo?'checked':''} onchange="toggleP(${i})">
-                        <button class="btn-del" onclick="borrarProg(${i})">✕</button>
-                    </div>
-                </div>`;
+                    <div class="prog-item" style="opacity: ${p.activo ? '1' : '0.5'}">
+                        <div style="flex-grow:1">
+                            <div style="color:var(--neon); font-weight:bold;">${p.inicio} - ${p.fin}</div>
+                            <small style="color:#888;">Pin ${p.pin} | ${diasLegibles}</small>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <input type="checkbox" ${p.activo ? 'checked' : ''} onchange="toggleP(${i})">
+                            <button class="btn-del" onclick="borrarProg(${i})">✕</button>
+                        </div>
+                    </div>`;
             });
         }
 
-        function setM(p, v) { modes[p] = v; client.publish('jardin/manual', JSON.stringify({pin:p, val:v})); render(); }
-        
+        function setM(pin, val) {
+            modes[pin] = val;
+            client.publish('jardin/manual', JSON.stringify({ pin: pin, val: val }));
+            render();
+        }
+
         function crearProg() {
-            const d = Array.from(document.querySelectorAll('#day-sel input:checked')).map(c => parseInt(c.value));
-            if(d.length === 0) { alert("Selecciona al menos un día"); return; }
-            dataProgs.push({ 
-                inicio: document.getElementById('in-ini').value, 
-                fin: document.getElementById('in-fin').value, 
-                pin: parseInt(document.getElementById('in-pin').value), 
-                dias: d, 
-                activo: true 
-            });
+            const inicio = document.getElementById('in-ini').value;
+            const fin = document.getElementById('in-fin').value;
+            const pin = parseInt(document.getElementById('in-pin').value);
+            const dias = Array.from(document.querySelectorAll('#day-sel input:checked')).map(c => parseInt(c.value));
+
+            if (dias.length === 0) return alert("Selecciona días");
+            if (inicio >= fin) return alert("Hora inválida");
+
+            dataProgs.push({ inicio, fin, pin, dias, activo: true });
             sync();
         }
 
@@ -140,15 +175,16 @@
             sync();
         }
 
-        function toggleP(i) { 
-            dataProgs[i].activo = !dataProgs[i].activo; 
-            sync(); 
+        function toggleP(i) {
+            dataProgs[i].activo = !dataProgs[i].activo;
+            sync();
         }
 
         function sync() {
             localStorage.setItem('riego_v15', JSON.stringify(dataProgs));
             render();
-            client.publish('jardin/config', JSON.stringify(dataProgs.filter(p => p.activo)), { retain: true });
+            const activas = dataProgs.filter(p => p.activo);
+            client.publish('jardin/config', JSON.stringify(activas), { retain: true });
         }
 
         render();
