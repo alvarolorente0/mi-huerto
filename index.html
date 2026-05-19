@@ -20,7 +20,6 @@
         .chart-card{width:100%; height:240px;}
         input[type=time], input[type=password], input[type=text], select{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
         
-        /* --- ESTILOS DE LA PANTALLA DE LOGIN --- */
         #login-screen {
             max-width: 320px; margin: 100px auto; padding: 25px; 
             background: #161b22; border: 1px solid #30363d; border-radius: 12px;
@@ -31,7 +30,6 @@
         .prog-item { border-bottom:1px solid #333; padding:12px 0; }
         .prog-item:last-child { border-bottom: none; }
         
-        /* --- BLOQUE METEOROLÓGICO CONFIGURABLE --- */
         .weather-box {
             background: #161b22; border: 1px solid #30363d; padding: 10px; 
             border-radius: 8px; margin: 10px auto; max-width: 860px;
@@ -56,13 +54,12 @@
 <div id="app-content">
     <h2>🌱 RIEGO CLOUD</h2>
     
-    <!-- Barra superior de estado y clima interactivo -->
     <div class="weather-box">
         <div style="font-size: 14px;">
             ⏰ <span id='hora'>--:--:--</span> | 🌡️ Sonda: <span id='temp' class='on'>--</span>°C
         </div>
         
-        <span id="aemet-prediccion" class="aemet-info">🌤️ AEMET: Cargando...</span>
+        <span id="aemet-prediccion" class="aemet-info">🌤️ Cargando clima...</span>
         
         <div class="cp-selector">
             <input type="text" id="cpInput" placeholder="50461" style="width: 80px;" maxlength="5">
@@ -92,7 +89,6 @@
 </div>
 
 <script>
-    // --- CONTROL DE ACCESO ---
     const CLAVE_CORRECTA = "1234";
 
     function verificarPassword() {
@@ -102,7 +98,6 @@
             document.getElementById('app-content').style.display = 'block';
             conectarMQTT();
             
-            // Cargar último CP o usar el de Alfamén por defecto
             let cpGuardado = localStorage.getItem('riegocp') || '50461';
             document.getElementById('cpInput').value = cpGuardado;
             buscarPorCodigoPostal();
@@ -114,149 +109,152 @@
         }
     }
 
-    // --- BUSCADOR GEOGRÁFICO POR CÓDIGO POSTAL ---
+    // --- BUSCADOR GEOGRÁFICO ---
     function buscarPorCodigoPostal() {
         const cp = document.getElementById('cpInput').value.trim();
         if(cp.length !== 5 || isNaN(cp)) {
-            alert("Por favor, introduce un Código Postal válido de 5 dígitos.");
+            alert("Por favor, introduce un Código Postal válido.");
             return;
         }
         
         localStorage.setItem('riegocp', cp);
-        
         const select = document.getElementById('municipioSelect');
         select.innerHTML = "";
         
         let nombreLocalidad = "Zona " + cp;
-        let codigoAemet = cp.substring(0, 2) + "001"; // Fallback general
+        let codigoAemet = cp.substring(0, 2) + "001"; 
+        let lat = "41.6563", lon = "-0.8773"; // Coordenadas por defecto (Zaragoza)
         
-        // Mapeo forzado e infalible para Alfamén y las principales áreas
         if (cp === "50461") {
             nombreLocalidad = "Alfamén";
             codigoAemet = "50018";
-        } else {
-            const provs = {"50":"Zaragoza", "28":"Madrid", "08":"Barcelona", "41":"Sevilla", "46":"Valencia"};
-            let prefijo = cp.substring(0,2);
-            if(provs[prefijo]) nombreLocalidad = "Región " + provs[prefijo];
-            
-            // Ajustes de códigos INE de capitales por si ponen CP generales de capitales
-            if(prefijo === "50") codigoAemet = "50297";
-            if(prefijo === "28") codigoAemet = "28079";
-            if(prefijo === "08") codigoAemet = "08019";
+            lat = "41.4382"; lon = "-1.2418";
+        } else if (cp === "50000" || cp === "50001" || cp === "50002" || cp === "50003" || cp === "50004" || cp === "50005") {
+            nombreLocalidad = "Zaragoza";
+            codigoAemet = "50297";
+            lat = "41.6563"; lon = "-0.8773";
         }
         
         let op = document.createElement('option');
         op.value = codigoAemet;
+        op.dataset.lat = lat;
+        op.dataset.lon = lon;
         op.text = nombreLocalidad;
         select.appendChild(op);
         select.style.display = "inline-block";
         
-        procesarClimaAemet(codigoAemet, nombreLocalidad);
+        obtenerClimaHibrido(codigoAemet, nombreLocalidad, lat, lon);
     }
 
     function cambiarMunicipioManual() {
         const select = document.getElementById('municipioSelect');
-        const codigoAemet = select.value;
-        const nombreLocalidad = select.options[select.selectedIndex].text;
-        procesarClimaAemet(codigoAemet, nombreLocalidad);
+        const op = select.options[select.selectedIndex];
+        obtenerClimaHibrido(op.value, op.text, op.dataset.lat, op.dataset.lon);
     }
 
-    // --- CONSULTA PREDICCIÓN DE AEMET ---
-    async function procesarClimaAemet(codigoMuniAemet, nombrePueblo) {
+    // --- GESTOR DE CLIMA HÍBRIDO (ANTI-CAÍDAS) ---
+    async function obtenerClimaHibrido(codigoAemet, nombrePueblo, lat, lon) {
+        document.getElementById("aemet-prediccion").innerHTML = "🌤️ Consultando tiempo...";
+        
+        // INTENTO 1: Intentar cargar desde AEMET Oficial
+        let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
+        
+        // INTENTO 2 (PLAN B): Si AEMET falla, carga instantáneamente desde el satélite global MetNo
+        if (!aemetExitoso) {
+            console.log("AEMET fuera de servicio. Activando servidor satélite secundario...");
+            await procesarClimaReserva(nombrePueblo, lat, lon);
+        }
+    }
+
+    async function procesarAemet(codigoMuniAemet, nombrePueblo) {
         try {
-            document.getElementById("aemet-prediccion").innerHTML = "🌤️ Leyendo AEMET...";
-            
             const url = `https://www.aemet.es/xml/municipios/localidad_${codigoMuniAemet}.xml`;
-            // Forzamos codificación limpia a través del proxy AllOrigins sin caché para datos en tiempo real
-            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`);
-            if(!respuesta.ok) throw new Error();
+            // Timeout forzado de 2.5 segundos para no dejar la app colgada si el proxy falla
+            const controlador = new AbortController();
+            setTimeout(() => controlador.abort(), 2500);
+
+            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`, { signal: controlador.signal });
+            if(!respuesta.ok) return false;
             
             const datos = await respuesta.json();
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(datos.contents, "text/xml");
-            
-            // Validación estricta del nodo de datos de AEMET
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
-            if(!hoy) {
-                document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: Sin datos hoy`;
-                return;
-            }
+            if(!hoy) return false;
             
             const estadosCielo = hoy.getElementsByTagName("estado_cielo");
             let descripcionCielo = "Despejado";
-            
-            // Buscar la última descripción disponible del día (generalmente tarde/noche)
             for(let i = estadosCielo.length - 1; i >= 0; i--) {
                 let desc = estadosCielo[i].getAttribute("descripcion");
                 if(desc) { descripcionCielo = desc; break; }
             }
-
             const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
             const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
             
             let icono = "🌤️";
-            const descLower = descripcionCielo.toLowerCase();
-            if(descLower.includes("lluvia") || descLower.includes("chubasco") || descLower.includes("llovizna")) icono = "🌧️";
-            else if(descLower.includes("cubierto") || descLower.includes("nuboso") || descLower.includes("nubes")) icono = "☁️";
-            else if(descLower.includes("despejado") || descLower.includes("sol")) icono = "☀️";
-            else if(descLower.includes("tormenta")) icono = "⛈️";
+            if(descripcionCielo.toLowerCase().match(/(lluvia|chubasco|llovizna)/)) icono = "🌧️";
+            else if(descripcionCielo.toLowerCase().match(/(cubierto|nuboso|nubes)/)) icono = "☁️";
+            else if(descripcionCielo.toLowerCase().match(/(despejado|sol)/)) icono = "☀️";
+            
+            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
 
-            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
-        } catch (error) {
-            console.error(error);
-            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Error de red con AEMET";
+    async function procesarClimaReserva(nombrePueblo, lat, lon) {
+        try {
+            const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`;
+            const respuesta = await fetch(url);
+            if(!respuesta.ok) throw new Error();
+            const json = await respuesta.json();
+            
+            const dataHoy = json.properties.timeseries[0].data;
+            const tempActual = dataHoy.instant.details.air_temperature;
+            const condicion = dataHoy.next_1_hours.summary.symbol_code;
+            
+            let icono = "🌤️";
+            if(condicion.includes("rain")) icono = "🌧️";
+            else if(condicion.includes("cloud")) icono = "☁️";
+            else if(condicion.includes("clearsky")) icono = "☀️";
+
+            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo} (Reserva): ${tempActual}°C en tiempo real`;
+        } catch(e) {
+            document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
         }
     }
 
     // --- CONEXIÓN MQTT SHIFTR.IO ---
     let mqttClient;
-    
     function conectarMQTT() {
         mqttClient = mqtt.connect('wss://public:public@public.cloud.shiftr.io', {
             clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
         });
-        
         mqttClient.on('connect', () => {
             document.getElementById('status').innerHTML = "🟢 CONECTADO A SHIFTR.IO";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
         });
-
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
         });
-
-        mqttClient.on('error', (err) => {
+        mqttClient.on('error', () => {
             document.getElementById('status').innerHTML = "🔴 ERROR DE CONEXIÓN";
             document.getElementById('status').style.color = "#f85149";
         });
     }
 
-    // --- LÓGICA DE INTERFAZ Y HISTORIAL ---
+    // --- INTERFAZ GRÁFICA ---
     let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
         data: { 
             labels: Array.from({length: 24}, (_, i) => i+'h'), 
-            datasets: [{ 
-                data: Array(24).fill(0), 
-                borderColor: '#58a6ff', 
-                tension: 0.4, 
-                fill: true, 
-                backgroundColor: 'rgba(88, 166, 255, 0.1)', 
-                pointRadius:1 
-            }] 
+            datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.4, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.1)', pointRadius:1 }] 
         }, 
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            scales: { 
-                y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, 
-                x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } 
-            }, 
-            plugins: { legend: {display:false} } 
-        } 
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
     });
 
     function up(data){
@@ -264,17 +262,12 @@
         if(p.length < 8) return;
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
-        
-        if(p[8]){ 
-            myChart.data.datasets[0].data = p[8].split(',').map(Number); 
-            myChart.update('none'); 
-        }
+        if(p[8]){ myChart.data.datasets[0].data = p[8].split(',').map(Number); myChart.update('none'); }
         
         let vH=''; 
         for(let i=1; i<=3; i++){
             let estadoValvula = p[i] == '1' ? 'on' : 'off';
             let textoValvula = p[i] == '1' ? '💧 Abierta' : '❌ Cerrada';
-            
             vH += `<div class='card'><b>🚰 EV ${i}</b> <span class='${estadoValvula}' style='float:right; font-size:12px; font-weight:bold;'>${textoValvula}</span><div class='btn-group'>`;
             [0,1,2].forEach(m => {
                 let modoActivo = p[i+3] == m ? 'active' : '';
@@ -286,96 +279,36 @@
         document.getElementById('valvulas').innerHTML = vH;
     }
 
-    function enviarComando(cmd) {
-        if(mqttClient && mqttClient.connected) {
-            mqttClient.publish('CVH/riego/cmd', cmd);
-        }
-    }
+    function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
 
-    // --- AUTOMATIZACIÓN (TICK DE CONTROL) ---
     function tick(){
         if(document.getElementById('app-content').style.display !== 'block') return;
-        
         let hStr = document.getElementById('hora').innerHTML;
         if(hStr == '--:--:--') return;
-        
-        let cur = hStr.substring(0,5);
-        let curD = new Date().getDay(); 
-        let ex = [0,0,0];
-        
-        progs.forEach(p => {
-            if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){
-                p.evs.forEach((v, idx) => { if(v) ex[idx] = 1; });
-            }
-        });
+        let cur = hStr.substring(0,5), curD = new Date().getDay(), ex = [0,0,0];
+        progs.forEach(p => { if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){ p.evs.forEach((v, idx) => { if(v) ex[idx] = 1; }); } });
         enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
     }
-
     setInterval(tick, 5000);
 
-    // --- GESTIÓN DE PROGRAMAS (CRUD) ---
-    function addP(){ 
-        if(progs.length >= 5) {
-            alert("Máximo 5 programas permitidos.");
-            return; 
-        }
-        progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
-        renderP(); 
-    }
-    
-    function tglEv(pIdx, vIdx) {
-        progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx];
-        renderP();
-    }
-
-    function tglDay(pIdx, dIdx){ 
-        let pos = progs[pIdx].days.indexOf(dIdx); 
-        if(pos > -1) progs[pIdx].days.splice(pos, 1); 
-        else progs[pIdx].days.push(dIdx); 
-        renderP(); 
-    }
-
-    function eliminarP(index) {
-        progs.splice(index, 1);
-        renderP();
-    }
-
-    function actualizarHoraProg(index, tipo, valor) {
-        progs[index][tipo] = valor;
-        localStorage.setItem('riegodb', JSON.stringify(progs));
-    }
+    function addP(){ if(progs.length >= 5) return alert("Máximo 5 programas."); progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); renderP(); }
+    function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(); }
+    function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(); }
+    function eliminarP(index) { progs.splice(index, 1); renderP(); }
+    function actualizarHoraProg(index, tipo, valor) { progs[index][tipo] = valor; localStorage.setItem('riegodb', JSON.stringify(progs)); }
 
     function renderP(){ 
         localStorage.setItem('riegodb', JSON.stringify(progs)); 
         let h = ''; 
-        
         progs.forEach((p, i) => { 
-            h += `<div class='prog-item'>
-                <b>P${i+1}</b> 
-                <input type='checkbox' ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'> | 
-                <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> a 
-                <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
-                <br>
-                <div class='btn-group'>`; 
-            
-            ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
-                let diaActivo = p.days.includes(idx) ? 'active' : '';
-                h += `<button class='btn ${diaActivo}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; 
-            }); 
-            
+            h += `<div class='prog-item'><b>P${i+1}</b> <input type='checkbox' ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'> | <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> a <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'><br><div class='btn-group'>`; 
+            ['D','L','M','X','J','V','S'].forEach((d, idx) => { h += `<button class='btn ${p.days.includes(idx) ? 'active' : ''}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; }); 
             h += `</div><div class='btn-group'>`; 
-            
-            p.evs.forEach((v, vidx) => { 
-                let evActiva = v ? 'active' : '';
-                h += `<button class='btn ${evActiva}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</button>`; 
-            }); 
-            
+            p.evs.forEach((v, vidx) => { h += `<button class='btn ${v ? 'active' : ''}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</button>`; }); 
             h += `<button class='btn' style='background:#f85149; flex:0.5' onclick='eliminarP(${i})'>🗑</button></div></div>`; 
         }); 
-        
         document.getElementById('listaProg').innerHTML = h; 
     }
-
     renderP();
 </script>
 </body>
