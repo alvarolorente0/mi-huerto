@@ -19,19 +19,18 @@
         .chart-card{width:100%; height:220px;}
         input[type=time], input[type=password]{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
         
+        /* --- ESTILOS DE LA PANTALLA DE LOGIN --- */
         #login-screen {
             max-width: 320px; margin: 100px auto; padding: 25px; 
             background: #161b22; border: 1px solid #30363d; border-radius: 12px;
         }
-        #app-content { display: none; }
+        #app-content { display: none; } /* Oculto por defecto */
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
-        .btn-save { background: #238636; color: white; width: calc(100% - 20px); margin: 5px 10px 15px 10px; font-size: 14px; padding: 12px; border-radius: 8px;}
-        .btn-save:not(:disabled):hover { background: #2ea043; }
-        .btn-save:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
     </style>
 </head>
 <body>
 
+<!-- 🔐 PANTALLA DE ACCESO -->
 <div id="login-screen">
     <h2>🌱 Riego Cloud</h2>
     <p style="color: #8b949e; font-size: 14px;">Introduce la contraseña de acceso</p>
@@ -40,62 +39,51 @@
     <div id="error" class="error-msg">⚠️ Contraseña incorrecta</div>
 </div>
 
+<!-- 📊 CONTENIDO DE LA APP (OCULTO ANTES DEL LOGIN) -->
 <div id="app-content">
     <h2>🌱 RIEGO CLOUD</h2>
     <p>RELOJ: <span id='hora'>--:--:--</span> | <span id='temp' class='on'>--</span>°C</p>
     <div id="status" style="font-size: 10px; color: #8b949e;">Iniciando conexión con Shiftr.io...</div>
 
     <div class='container'>
-        <details open>
-            <summary>📅 CONFIGURACIÓN DE PROGRAMAS</summary>
-            <div id='listaProg' style='padding:10px;'>Cargando programas...</div>
-            <button class='btn' style='margin:10px 10px 5px 10px; width:calc(100% - 20px); background:#30363d;' onclick='addP()'>+ AÑADIR PROGRAMA</button>
-            <button id="btnGuardar" class='btn btn-save' onclick='enviarProgsAlHardware()' disabled>💾 GUARDAR CAMBIOS EN LA NUBE</button>
-        </details>
+        <details open><summary>📅 PROGRAMAS</summary><div id='listaProg' style='padding:10px;'></div><button class='btn active' style='margin:10px; width:calc(100% - 20px);' onclick='addP()'>+ AÑADIR</button></details>
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         <div class='card chart-card'><strong>Historial 24h</strong><canvas id='myChart'></canvas></div>
     </div>
 </div>
 
 <script>
+    // --- CONTROL DE ACCESO ---
     const CLAVE_CORRECTA = "1234";
-    let progs = []; 
-    let editado = false; 
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
         if (input === CLAVE_CORRECTA) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-            conectarMQTT();
+            conectarMQTT(); // Conecta a MQTT solo si la clave es correcta
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
         }
     }
 
+    // --- CONEXIÓN MQTT SHIFTR.IO (Encapsulada en una función) ---
     let mqttClient;
+    
     function conectarMQTT() {
         mqttClient = mqtt.connect('wss://public:public@public.cloud.shiftr.io', {
           clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
         });
         
         mqttClient.on('connect', () => {
-            document.getElementById('status').innerHTML = "🟢 CONECTADO. SINCRONIZANDO...";
+            document.getElementById('status').innerHTML = "🟢 CONECTADO A SHIFTR.IO";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
-            mqttClient.subscribe('CVH/riego/progs'); 
-            
-            setTimeout(() => { enviarComando("GET_PROGS"); }, 1000);
         });
 
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
-            if(topic === 'CVH/riego/progs') {
-                if(!editado) {
-                    procesarProgramasRemotos(message.toString());
-                }
-            }
         });
 
         mqttClient.on('error', (err) => {
@@ -104,6 +92,8 @@
         });
     }
 
+    // --- LÓGICA DE INTERFAZ ---
+    let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { type: 'line', data: { labels: Array.from({length: 24}, (_, i) => i+'h'), datasets: [{ data: [], borderColor: '#58a6ff', tension: 0.4, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.1)', pointRadius:1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}}, grid: {display:false} } }, plugins: { legend: {display:false} } } });
 
@@ -126,43 +116,34 @@
     }
 
     function enviarComando(cmd) {
-        if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd);
-    }
-
-    function enviarProgsAlHardware() {
-        if(!mqttClient || !mqttClient.connected) return;
-        let str = "SAVE_PROGS|";
-        progs.forEach(p => {
-            let evsBin = p.evs.map(v => v ? '1' : '0').join('');
-            let diasBin = Array.from({length:7}, (_,i) => p.days.includes(i) ? '1' : '0').join('');
-            str += `${p.en?'1':'0'},${p.on},${p.off},${evsBin},${diasBin};`;
-        });
-        mqttClient.publish('CVH/riego/cmd', str);
-        
-        marcarCambios(false);
-        document.getElementById('status').innerHTML = "🟢 CAMBIOS GUARDADOS EN LA NUBE";
-        setTimeout(() => { document.getElementById('status').innerHTML = "🟢 CONECTADO"; }, 3000);
-    }
-
-    function procesarProgramasRemotos(data) {
-        if(!data || data === "NONE") { progs = []; renderP(); return; }
-        let lista = data.split(';');
-        progs = [];
-        lista.forEach(item => {
-            if(!item) return;
-            let tokens = item.split(',');
-            if(tokens.length < 5) return;
-            
-            let evs = tokens[3].split('').map(x => x === '1');
-            let days = [];
-            tokens[4].split('').forEach((v, i) => { if(v === '1') days.push(i); });
-            
-            progs.push({ en: tokens[0] === '1', on: tokens[1], off: tokens[2], evs: evs, days: days });
-        });
-        renderP();
+        if(mqttClient && mqttClient.connected) {
+            mqttClient.publish('CVH/riego/cmd', cmd);
+        }
     }
 
     function tick(){
+        // Evita ejecutar lógica si aún no nos hemos logueado o si no hay datos
         if(document.getElementById('app-content').style.display !== 'block') return;
+        
         let hStr = document.getElementById('hora').innerHTML;
-        if
+        if(hStr == '--:--:--') return;
+        let cur = hStr.substring(0,5);
+        let curD = new Date().getDay();
+        let ex = [0,0,0];
+        progs.forEach(p => {
+            if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){
+                p.evs.forEach((v, idx) => { if(v) ex[idx]=1; });
+            }
+        });
+        enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
+    }
+
+    setInterval(tick, 5000);
+
+    function addP(){ if(progs.length>=5) return; progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); renderP(); }
+    function renderP(){ localStorage.setItem('riegodb', JSON.stringify(progs)); let h=''; progs.forEach((p,i)=>{ h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP()'><br><div class='btn-group'>`; ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); h+=`</div><div class='btn-group'>`; p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];renderP()'>EV${vidx+1}</button>`; }); h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP()'>🗑</button></div></div>`; }); document.getElementById('listaProg').innerHTML=h; }
+    function tglDay(p, d){ let pos=progs[p].days.indexOf(d); if(pos>-1) progs[p].days.splice(pos,1); else progs[p].days.push(d); renderP(); }
+    renderP();
+</script>
+</body>
+</html>
