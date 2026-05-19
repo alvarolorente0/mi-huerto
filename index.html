@@ -141,7 +141,14 @@
     setInterval(tick, 5000);
 
     function addP(){ if(progs.length>=5) return; progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); renderP(); }
-    function renderP(){ localStorage.setItem('riegodb', JSON.stringify(progs)); let h=''; progs.forEach((p,i)=>{ h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP()'><br><div class='btn-group'>`; ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); h+=`</div><div class='btn-group'>`; p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];renderP()'>EV${vidx+1}</button>`; }); h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP()'>🗑</button></div></div>`; }); document.getElementById('listaProg').innerHTML=h; }
+    
+    // Función añadida para manejar la selección de electroválvulas de forma segura
+    function tglEv(pIdx, vIdx) {
+        progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx];
+        renderP();
+    }
+
+    function renderP(){ localStorage.setItem('riegodb', JSON.stringify(progs)); let h=''; progs.forEach((p,i)=>{ h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP()'><br><div class='btn-group'>`; ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); h+=`</div><div class='btn-group'>`; p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='tglEv(${i},${vidx})'>EV${vidx+1}</button>`; }); h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP()'>🗑</button></div></div>`; }); document.getElementById('listaProg').innerHTML=h; }
     function tglDay(p, d){ let pos=progs[p].days.indexOf(d); if(pos>-1) progs[p].days.splice(pos,1); else progs[p].days.push(d); renderP(); }
     renderP();
 </script>
