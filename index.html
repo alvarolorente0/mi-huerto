@@ -62,10 +62,10 @@
             ⏰ <span id='hora'>--:--:--</span> | 🌡️ Sonda: <span id='temp' class='on'>--</span>°C
         </div>
         
-        <span id="aemet-prediccion" class="aemet-info">🌤️ AEMET: Introduce tu CP para ver el clima</span>
+        <span id="aemet-prediccion" class="aemet-info">🌤️ AEMET: Cargando...</span>
         
         <div class="cp-selector">
-            <input type="text" id="cpInput" placeholder="CP (Ej: 50461)" style="width: 80px;" maxlength="5">
+            <input type="text" id="cpInput" placeholder="50461" style="width: 80px;" maxlength="5">
             <select id="municipioSelect" style="max-width: 150px; display: none;" onchange="cambiarMunicipioManual()"></select>
             <button class="btn active" style="padding: 8px 12px;" onclick="buscarPorCodigoPostal()">🔍</button>
         </div>
@@ -102,7 +102,7 @@
             document.getElementById('app-content').style.display = 'block';
             conectarMQTT();
             
-            // Cargar último CP guardado si existe (por defecto Alfamén si está vacío)
+            // Cargar último CP o usar el de Alfamén por defecto
             let cpGuardado = localStorage.getItem('riegocp') || '50461';
             document.getElementById('cpInput').value = cpGuardado;
             buscarPorCodigoPostal();
@@ -115,7 +115,7 @@
     }
 
     // --- BUSCADOR GEOGRÁFICO POR CÓDIGO POSTAL ---
-    async function buscarPorCodigoPostal() {
+    function buscarPorCodigoPostal() {
         const cp = document.getElementById('cpInput').value.trim();
         if(cp.length !== 5 || isNaN(cp)) {
             alert("Por favor, introduce un Código Postal válido de 5 dígitos.");
@@ -123,87 +123,88 @@
         }
         
         localStorage.setItem('riegocp', cp);
-        document.getElementById("aemet-prediccion").innerHTML = "🔍 Buscando localidad...";
         
         const select = document.getElementById('municipioSelect');
         select.innerHTML = "";
         
-        // Mapeo manual optimizado para tu zona y fallbacks por provincia para evitar respuestas vacías de APIs externas
-        let nombreLocalidad = "Zona CP " + cp;
+        let nombreLocalidad = "Zona " + cp;
+        let codigoAemet = cp.substring(0, 2) + "001"; // Fallback general
         
+        // Mapeo forzado e infalible para Alfamén y las principales áreas
         if (cp === "50461") {
             nombreLocalidad = "Alfamén";
+            codigoAemet = "50018";
         } else {
-            // Intento de extracción de nombre genérico por provincias de Aragón / España
-            const provs = {"50":"Zaragoza", "22":"Huesca", "44":"Teruel", "28":"Madrid", "08":"Barcelona"};
+            const provs = {"50":"Zaragoza", "28":"Madrid", "08":"Barcelona", "41":"Sevilla", "46":"Valencia"};
             let prefijo = cp.substring(0,2);
             if(provs[prefijo]) nombreLocalidad = "Región " + provs[prefijo];
+            
+            // Ajustes de códigos INE de capitales por si ponen CP generales de capitales
+            if(prefijo === "50") codigoAemet = "50297";
+            if(prefijo === "28") codigoAemet = "28079";
+            if(prefijo === "08") codigoAemet = "08019";
         }
         
         let op = document.createElement('option');
-        op.value = cp;
+        op.value = codigoAemet;
         op.text = nombreLocalidad;
         select.appendChild(op);
         select.style.display = "inline-block";
         
-        procesarClimaAemet(cp);
+        procesarClimaAemet(codigoAemet, nombreLocalidad);
     }
 
     function cambiarMunicipioManual() {
-        const cp = document.getElementById('cpInput').value.trim();
-        procesarClimaAemet(cp);
+        const select = document.getElementById('municipioSelect');
+        const codigoAemet = select.value;
+        const nombreLocalidad = select.options[select.selectedIndex].text;
+        procesarClimaAemet(codigoAemet, nombreLocalidad);
     }
 
     // --- CONSULTA PREDICCIÓN DE AEMET ---
-    async function procesarClimaAemet(cp) {
+    async function procesarClimaAemet(codigoMuniAemet, nombrePueblo) {
         try {
-            document.getElementById("aemet-prediccion").innerHTML = "🌤️ Cargando previsión AEMET...";
+            document.getElementById("aemet-prediccion").innerHTML = "🌤️ Leyendo AEMET...";
             
-            // Determinación exacta del código de municipio INE requerido por AEMET
-            let codigoMuniAemet = cp.substring(0, 2) + "001"; // Por defecto cabecera de comarca asignada por AEMET
-            
-            // Ajustes específicos por códigos postales conocidos
-            if(cp === "50461") codigoMuniAemet = "50018"; // Código oficial AEMET/INE para Alfamén
-            else if(cp.substring(0,2) === "50" && cp !== "50461") codigoMuniAemet = "50297"; // Fallback Zaragoza Capital
-            else if(cp.substring(0,2) === "28") codigoMuniAemet = "28079"; // Madrid
-            else if(cp.substring(0,2) === "08") codigoMuniAemet = "08019"; // Barcelona
-            else if(cp.substring(0,2) === "41") codigoMuniAemet = "41091"; // Sevilla
-            else if(cp.substring(0,2) === "46") codigoMuniAemet = "46250"; // Valencia
-
             const url = `https://www.aemet.es/xml/municipios/localidad_${codigoMuniAemet}.xml`;
-            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-            const datos = await respuesta.json();
+            // Forzamos codificación limpia a través del proxy AllOrigins sin caché para datos en tiempo real
+            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`);
+            if(!respuesta.ok) throw new Error();
             
+            const datos = await respuesta.json();
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(datos.contents, "text/xml");
             
+            // Validación estricta del nodo de datos de AEMET
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
-            if(!hoy) throw new Error("Estructura XML no válida");
+            if(!hoy) {
+                document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: Sin datos hoy`;
+                return;
+            }
             
             const estadosCielo = hoy.getElementsByTagName("estado_cielo");
+            let descripcionCielo = "Despejado";
             
-            let descripcionCielo = "Variable";
+            // Buscar la última descripción disponible del día (generalmente tarde/noche)
             for(let i = estadosCielo.length - 1; i >= 0; i--) {
                 let desc = estadosCielo[i].getAttribute("descripcion");
                 if(desc) { descripcionCielo = desc; break; }
             }
 
-            const maxima = hoy.getElementsByTagName("maxima")[0].textContent;
-            const minima = hoy.getElementsByTagName("minima")[0].textContent;
+            const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
+            const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
             
             let icono = "🌤️";
-            if(descripcionCielo.toLowerCase().includes("lluvia") || descripcionCielo.toLowerCase().includes("chubasco")) icono = "🌧️";
-            else if(descripcionCielo.toLowerCase().includes("cubierto") || descripcionCielo.toLowerCase().includes("nuboso")) icono = "☁️";
-            else if(descripcionCielo.toLowerCase().includes("despejado")) icono = "☀️";
-            else if(descripcionCielo.toLowerCase().includes("tormenta")) icono = "⛈️";
+            const descLower = descripcionCielo.toLowerCase();
+            if(descLower.includes("lluvia") || descLower.includes("chubasco") || descLower.includes("llovizna")) icono = "🌧️";
+            else if(descLower.includes("cubierto") || descLower.includes("nuboso") || descLower.includes("nubes")) icono = "☁️";
+            else if(descLower.includes("despejado") || descLower.includes("sol")) icono = "☀️";
+            else if(descLower.includes("tormenta")) icono = "⛈️";
 
-            const select = document.getElementById('municipioSelect');
-            const puebloDetectado = select.options[select.selectedIndex]?.text || "Alfamén";
-
-            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${puebloDetectado}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
         } catch (error) {
             console.error(error);
-            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Clima no disponible temporalmente";
+            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Error de red con AEMET";
         }
     }
 
