@@ -60,7 +60,7 @@
 <script>
     const CLAVE_CORRECTA = "1234";
     let progs = []; 
-    let editado = false; // Controla si hay cambios pendientes por guardar
+    let editado = false; 
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
@@ -92,7 +92,6 @@
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
             if(topic === 'CVH/riego/progs') {
-                // Solo aceptamos la lista remota si nosotros no estamos editando activamente
                 if(!editado) {
                     procesarProgramasRemotos(message.toString());
                 }
@@ -140,7 +139,6 @@
         });
         mqttClient.publish('CVH/riego/cmd', str);
         
-        // Cambios guardados con éxito
         marcarCambios(false);
         document.getElementById('status').innerHTML = "🟢 CAMBIOS GUARDADOS EN LA NUBE";
         setTimeout(() => { document.getElementById('status').innerHTML = "🟢 CONECTADO"; }, 3000);
@@ -167,60 +165,4 @@
     function tick(){
         if(document.getElementById('app-content').style.display !== 'block') return;
         let hStr = document.getElementById('hora').innerHTML;
-        if(hStr == '--:--:--' || progs.length === 0) return;
-        
-        let cur = hStr.substring(0,5);
-        let curD = new Date().getDay();
-        let ex = [0,0,0];
-        progs.forEach(p => {
-            if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){
-                p.evs.forEach((v, idx) => { if(v) ex[idx]=1; });
-            }
-        });
-        enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
-    }
-
-    setInterval(tick, 5000);
-
-    function marcarCambios(estado) {
-        editado = estado;
-        const btn = document.getElementById('btnGuardar');
-        btn.disabled = !estado;
-        if(estado) {
-            btn.innerHTML = "⚠️ GUARDAR CAMBIOS PENDIENTES";
-            document.getElementById('status').innerHTML = "🟡 TIENES CAMBIOS SIN GUARDAR";
-        } else {
-            btn.innerHTML = "💾 GUARDAR CAMBIOS EN LA NUBE";
-        }
-    }
-
-    function addP(){ 
-        if(progs.length>=5) return; 
-        progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); 
-        marcarCambios(true);
-        renderP(); 
-    }
-    
-    function renderP(){ 
-        let h=''; 
-        if(progs.length === 0) h = "<p style='color:#8b949e'>No hay programas configurados.</p>";
-        progs.forEach((p,i)=>{ 
-            h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;marcarCambios(true);renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;marcarCambios(true);renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;marcarCambios(true);renderP()'><br><div class='btn-group'>`; 
-            ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); 
-            h+=`</div><div class='btn-group'>`; 
-            p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];marcarCambios(true);renderP()'>EV${vidx+1}</button>`; }); 
-            h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);marcarCambios(true);renderP()'>🗑</button></div></div>`; 
-        }); 
-        document.getElementById('listaProg').innerHTML=h; 
-    }
-    
-    function tglDay(p, d){ 
-        let pos=progs[p].days.indexOf(d); 
-        if(pos>-1) progs[p].days.splice(pos,1); 
-        else progs[p].days.push(d); 
-        marcarCambios(true);
-        renderP(); 
-    }
-</script>
-</body>
-</html>
+        if
