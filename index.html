@@ -65,7 +65,7 @@
         <span id="aemet-prediccion" class="aemet-info">🌤️ AEMET: Introduce tu CP para ver el clima</span>
         
         <div class="cp-selector">
-            <input type="text" id="cpInput" placeholder="CP (Ej: 28001)" style="width: 80px;" maxlength="5">
+            <input type="text" id="cpInput" placeholder="CP (Ej: 50461)" style="width: 80px;" maxlength="5">
             <select id="municipioSelect" style="max-width: 150px; display: none;" onchange="cambiarMunicipioManual()"></select>
             <button class="btn active" style="padding: 8px 12px;" onclick="buscarPorCodigoPostal()">🔍</button>
         </div>
@@ -102,12 +102,11 @@
             document.getElementById('app-content').style.display = 'block';
             conectarMQTT();
             
-            // Cargar último CP guardado si existe
-            let cpGuardado = localStorage.getItem('riegocp');
-            if(cpGuardado) {
-                document.getElementById('cpInput').value = cpGuardado;
-                buscarPorCodigoPostal();
-            }
+            // Cargar último CP guardado si existe (por defecto Alfamén si está vacío)
+            let cpGuardado = localStorage.getItem('riegocp') || '50461';
+            document.getElementById('cpInput').value = cpGuardado;
+            buscarPorCodigoPostal();
+            
             renderP(); 
         } else {
             document.getElementById('error').style.display = 'block';
@@ -126,38 +125,28 @@
         localStorage.setItem('riegocp', cp);
         document.getElementById("aemet-prediccion").innerHTML = "🔍 Buscando localidad...";
         
-        try {
-            // Consultamos servicio de geolocalización postal para España
-            const respuesta = await fetch(`https://api.zippopotam.as/es/${cp}`);
-            if(!respuesta.ok) throw new Error("CP no encontrado");
-            
-            const datos = await respuesta.json();
-            const lugares = datos.places;
-            const select = document.getElementById('municipioSelect');
-            
-            select.innerHTML = "";
-            
-            // Llenamos el desplegable con las poblaciones vinculadas a ese CP
-            lugares.forEach(lugar => {
-                // Obtenemos los códigos para formar el ID INE (Provincia + Municipio aproximado)
-                // Usamos una estimación limpia de código para AEMET basada en el CP de destino
-                let nombreLugar = lugar['place name'];
-                let op = document.createElement('option');
-                op.value = cp.substring(0,2) + "001"; // Inicialización base
-                
-                // Intentamos un mapeo directo por provincia para afinar búsquedas automatizadas
-                op.text = nombreLugar;
-                select.appendChild(op);
-            });
-            
-            select.style.display = "inline-block";
-            // Ejecutamos la consulta meteorológica con la primera opción encontrada
-            procesarClimaAemet(cp);
-            
-        } catch (error) {
-            console.error(error);
-            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Código Postal no detectado";
+        const select = document.getElementById('municipioSelect');
+        select.innerHTML = "";
+        
+        // Mapeo manual optimizado para tu zona y fallbacks por provincia para evitar respuestas vacías de APIs externas
+        let nombreLocalidad = "Zona CP " + cp;
+        
+        if (cp === "50461") {
+            nombreLocalidad = "Alfamén";
+        } else {
+            // Intento de extracción de nombre genérico por provincias de Aragón / España
+            const provs = {"50":"Zaragoza", "22":"Huesca", "44":"Teruel", "28":"Madrid", "08":"Barcelona"};
+            let prefijo = cp.substring(0,2);
+            if(provs[prefijo]) nombreLocalidad = "Región " + provs[prefijo];
         }
+        
+        let op = document.createElement('option');
+        op.value = cp;
+        op.text = nombreLocalidad;
+        select.appendChild(op);
+        select.style.display = "inline-block";
+        
+        procesarClimaAemet(cp);
     }
 
     function cambiarMunicipioManual() {
@@ -170,25 +159,16 @@
         try {
             document.getElementById("aemet-prediccion").innerHTML = "🌤️ Cargando previsión AEMET...";
             
-            // Generación de identificador de recurso provincial/local para el XML de AEMET
-            // Aemet mapea las cabeceras postales principales de forma directa mediante la raíz del CP
-            let codigoMuniAemet = cp.substring(0, 2) + "079"; // Fallback capital provincial si el INE no es exacto
+            // Determinación exacta del código de municipio INE requerido por AEMET
+            let codigoMuniAemet = cp.substring(0, 2) + "001"; // Por defecto cabecera de comarca asignada por AEMET
             
-            // Ajustes precisos para las principales ciudades por rango postal común
-            if(cp.substring(0,2) === "08") codigoMuniAemet = "08019"; // Barcelona
-            if(cp.substring(0,2) === "41") codigoMuniAemet = "41091"; // Sevilla
-            if(cp.substring(0,2) === "46") codigoMuniAemet = "46250"; // Valencia
-            if(cp.substring(0,2) === "50") codigoMuniAemet = "50297"; // Zaragoza
-            if(cp.substring(0,2) === "29") codigoMuniAemet = "29067"; // Málaga
-            if(cp.substring(0,2) === "30") codigoMuniAemet = "30030"; // Murcia
-            if(cp.substring(0,2) === "15") codigoMuniAemet = "15030"; // A Coruña
-            if(cp.substring(0,2) === "36") codigoMuniAemet = "36057"; // Vigo
-            if(cp.substring(0,2) === "48") codigoMuniAemet = "48020"; // Bilbao
-            
-            // Si no está en las grandes mapeadas, usamos el nodo de cabecera de comarca por defecto de AEMET (XX001)
-            if(codigoMuniAemet === cp.substring(0,2) + "079" && cp.substring(0,2) !== "28") {
-                codigoMuniAemet = cp.substring(0, 2) + "001";
-            }
+            // Ajustes específicos por códigos postales conocidos
+            if(cp === "50461") codigoMuniAemet = "50018"; // Código oficial AEMET/INE para Alfamén
+            else if(cp.substring(0,2) === "50" && cp !== "50461") codigoMuniAemet = "50297"; // Fallback Zaragoza Capital
+            else if(cp.substring(0,2) === "28") codigoMuniAemet = "28079"; // Madrid
+            else if(cp.substring(0,2) === "08") codigoMuniAemet = "08019"; // Barcelona
+            else if(cp.substring(0,2) === "41") codigoMuniAemet = "41091"; // Sevilla
+            else if(cp.substring(0,2) === "46") codigoMuniAemet = "46250"; // Valencia
 
             const url = `https://www.aemet.es/xml/municipios/localidad_${codigoMuniAemet}.xml`;
             const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
@@ -198,6 +178,8 @@
             const xmlDoc = parser.parseFromString(datos.contents, "text/xml");
             
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
+            if(!hoy) throw new Error("Estructura XML no válida");
+            
             const estadosCielo = hoy.getElementsByTagName("estado_cielo");
             
             let descripcionCielo = "Variable";
@@ -216,12 +198,12 @@
             else if(descripcionCielo.toLowerCase().includes("tormenta")) icono = "⛈️";
 
             const select = document.getElementById('municipioSelect');
-            const puebloDetectado = select.options[select.selectedIndex]?.text || "";
+            const puebloDetectado = select.options[select.selectedIndex]?.text || "Alfamén";
 
             document.getElementById("aemet-prediccion").innerHTML = `${icono} ${puebloDetectado}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
         } catch (error) {
             console.error(error);
-            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Clima no disponible para esta zona";
+            document.getElementById("aemet-prediccion").innerHTML = "⚠️ Clima no disponible temporalmente";
         }
     }
 
