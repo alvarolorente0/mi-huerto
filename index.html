@@ -17,7 +17,7 @@
         .on{color:#3fb950;} .off{color:#f85149;}
         details{width:100%; background:#161b22; border:1px solid #30363d; border-radius:12px; text-align:left;}
         summary{padding:12px; cursor:pointer; font-weight:bold;}
-        .chart-card{width:100%; height:240px;}
+        .chart-card{width:100%; height:220px; margin-bottom: 5px;}
         input[type=time], input[type=password], input[type=text], select{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
         
         #login-screen {
@@ -79,10 +79,19 @@
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         
+        <!-- 📈 GRÁFICA 1: HISTORIAL DE TEMPERATURAS -->
         <div class='card chart-card'>
-            <strong style="display:block; margin-bottom:8px;">Historial 24h</strong>
-            <div style="position: relative; height: 180px; width: 100%;">
+            <strong style="display:block; margin-bottom:4px;">Historial Sonda 24h (°C)</strong>
+            <div style="position: relative; height: 160px; width: 100%;">
                 <canvas id='myChart'></canvas>
+            </div>
+        </div>
+
+        <!-- 🌧️ GRÁFICA 2: PREVISIÓN DE PLUVIOMETRÍA (NUEVA) -->
+        <div class='card chart-card'>
+            <strong style="display:block; margin-bottom:4px; color: #58a6ff;">Previsión Pluviometría (mm o l/m²)</strong>
+            <div style="position: relative; height: 160px; width: 100%;">
+                <canvas id='rainChart'></canvas>
             </div>
         </div>
     </div>
@@ -123,7 +132,7 @@
         
         let nombreLocalidad = "Zona " + cp;
         let codigoAemet = cp.substring(0, 2) + "001"; 
-        let lat = "41.6563", lon = "-0.8773"; // Coordenadas por defecto (Zaragoza)
+        let lat = "41.6563", lon = "-0.8773"; 
         
         if (cp === "50461") {
             nombreLocalidad = "Alfamén";
@@ -152,16 +161,14 @@
         obtenerClimaHibrido(op.value, op.text, op.dataset.lat, op.dataset.lon);
     }
 
-    // --- GESTOR DE CLIMA HÍBRIDO (ANTI-CAÍDAS) ---
+    // --- GESTOR DE CLIMA HÍBRIDO ---
     async function obtenerClimaHibrido(codigoAemet, nombrePueblo, lat, lon) {
         document.getElementById("aemet-prediccion").innerHTML = "🌤️ Consultando tiempo...";
         
-        // INTENTO 1: Intentar cargar desde AEMET Oficial
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
         
-        // INTENTO 2 (PLAN B): Si AEMET falla, carga instantáneamente desde el satélite global MetNo
         if (!aemetExitoso) {
-            console.log("AEMET fuera de servicio. Activando servidor satélite secundario...");
+            console.log("AEMET fuera de servicio o sin datos de lluvia detallados. Usando MetNo...");
             await procesarClimaReserva(nombrePueblo, lat, lon);
         }
     }
@@ -169,7 +176,6 @@
     async function procesarAemet(codigoMuniAemet, nombrePueblo) {
         try {
             const url = `https://www.aemet.es/xml/municipios/localidad_${codigoMuniAemet}.xml`;
-            // Timeout forzado de 2.5 segundos para no dejar la app colgada si el proxy falla
             const controlador = new AbortController();
             setTimeout(() => controlador.abort(), 2500);
 
@@ -182,6 +188,7 @@
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
             if(!hoy) return false;
             
+            // Procesamiento de texto del cielo
             const estadosCielo = hoy.getElementsByTagName("estado_cielo");
             let descripcionCielo = "Despejado";
             for(let i = estadosCielo.length - 1; i >= 0; i--) {
@@ -191,11 +198,20 @@
             const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
             const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
             
-            let icono = "🌤️";
-            if(descripcionCielo.toLowerCase().match(/(lluvia|chubasco|llovizna)/)) icono = "🌧️";
-            else if(descripcionCielo.toLowerCase().match(/(cubierto|nuboso|nubes)/)) icono = "☁️";
-            else if(descripcionCielo.toLowerCase().match(/(despejado|sol)/)) icono = "☀️";
+            // Extraer probabilidad de lluvia de AEMET para pintar la gráfica (mañana, mediodía, tarde, noche)
+            const lluviaNodos = hoy.getElementsByTagName("prob_precipitacion");
+            let datosPrecipitacion = Array(24).fill(0);
             
+            if(lluviaNodos.length > 0) {
+                // Rellenamos estimaciones visuales basadas en las probabilidades de periodos de AEMET
+                let probHoy = parseInt(lluviaNodos[0].textContent) || 0;
+                // Convertimos probabilidad aproximada a una estimación de intensidad en mm para la gráfica
+                let estimacionMm = probHoy > 70 ? 4 : probHoy > 40 ? 1.5 : probHoy > 10 ? 0.5 : 0;
+                for(let h=12; h<20; h++) datosPrecipitacion[h] = estimacionMm; 
+            }
+            
+            actualizarGraficaLluvia(datosPrecipitacion);
+
             document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
             return true;
         } catch (e) {
@@ -212,17 +228,26 @@
             
             const dataHoy = json.properties.timeseries[0].data;
             const tempActual = dataHoy.instant.details.air_temperature;
-            const condicion = dataHoy.next_1_hours.summary.symbol_code;
             
-            let icono = "🌤️";
-            if(condicion.includes("rain")) icono = "🌧️";
-            else if(condicion.includes("cloud")) icono = "☁️";
-            else if(condicion.includes("clearsky")) icono = "☀️";
+            // MetNo nos da la lluvia exacta de las próximas 24 horas paso a paso
+            let datosPrecipitacion = [];
+            for(let i=0; i<24; i++) {
+                let bloqueHora = json.properties.timeseries[i];
+                let lluviaEnEsaHora = bloqueHora?.data?.next_1_hours?.details?.precipitation_amount || 0;
+                datosPrecipitacion.push(lluviaEnEsaHora);
+            }
+            
+            actualizarGraficaLluvia(datosPrecipitacion);
 
-            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo} (Reserva): ${tempActual}°C en tiempo real`;
+            document.getElementById("aemet-prediccion").innerHTML = `🌧️ ${nombrePueblo}: Conectado (${tempActual}°C)`;
         } catch(e) {
             document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
         }
+    }
+
+    function actualizarGraficaLluvia(listaValores) {
+        rainChart.data.datasets[0].data = listaValores;
+        rainChart.update('none');
     }
 
     // --- CONEXIÓN MQTT SHIFTR.IO ---
@@ -245,18 +270,28 @@
         });
     }
 
-    // --- INTERFAZ GRÁFICA ---
-    let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
+    // --- CONFIGURACIÓN DE LAS DOS GRÁFICAS (CHART.JS) ---
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
         data: { 
             labels: Array.from({length: 24}, (_, i) => i+'h'), 
-            datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.4, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.1)', pointRadius:1 }] 
+            datasets: [{ data: Array(24).fill(0), borderColor: '#ffa040', tension: 0.4, fill: true, backgroundColor: 'rgba(255, 160, 64, 0.08)', pointRadius:1 }] 
         }, 
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
     });
 
+    const ctxRain = document.getElementById('rainChart').getContext('2d');
+    const rainChart = new Chart(ctxRain, { 
+        type: 'line', 
+        data: { 
+            labels: Array.from({length: 24}, (_, i) => '+'+i+'h'), 
+            datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.2)', pointRadius:2 }] 
+        }, 
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
+    });
+
+    // --- RECEPCIÓN DE DATOS ---
     function up(data){
         let p = data.split('|');
         if(p.length < 8) return;
@@ -281,6 +316,8 @@
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
 
+    // --- AUTOMATIZACIÓN (TICK) ---
+    let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     function tick(){
         if(document.getElementById('app-content').style.display !== 'block') return;
         let hStr = document.getElementById('hora').innerHTML;
@@ -291,6 +328,7 @@
     }
     setInterval(tick, 5000);
 
+    // --- PROGRAMAS CRUD ---
     function addP(){ if(progs.length >= 5) return alert("Máximo 5 programas."); progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); renderP(); }
     function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(); }
     function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(); }
