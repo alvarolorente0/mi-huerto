@@ -9,14 +9,15 @@
     <style>
         body{font-family:sans-serif; background:#0d1117; color:#c9d1d9; margin:0; padding:10px; text-align:center;}
         .container{max-width:900px; margin:auto; display:flex; flex-wrap:wrap; justify-content:center; gap:12px;}
-        .card{background:#161b22; border:1px solid #30363d; border-radius:12px; padding:12px; flex:1 1 280px;}
+        .card{background:#161b22; border:1px solid #30363d; border-radius:12px; padding:12px; flex:1 1 280px; box-sizing: border-box;}
         .btn-group{display:flex; gap:4px; margin-top:8px;}
-        .btn{flex:1; padding:10px 2px; border-radius:6px; border:none; cursor:pointer; background:#21262d; color:white; font-weight:bold; font-size:12px;}
+        .btn{flex:1; padding:10px 2px; border-radius:6px; border:none; cursor:pointer; background:#21262d; color:white; font-weight:bold; font-size:12px; transition: background 0.2s;}
         .active{background:#238636;}
+        .btn:hover{filter: brightness(1.2);}
         .on{color:#3fb950;} .off{color:#f85149;}
         details{width:100%; background:#161b22; border:1px solid #30363d; border-radius:12px; text-align:left;}
         summary{padding:12px; cursor:pointer; font-weight:bold;}
-        .chart-card{width:100%; height:220px;}
+        .chart-card{width:100%; height:240px;}
         input[type=time], input[type=password]{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
         
         /* --- ESTILOS DE LA PANTALLA DE LOGIN --- */
@@ -24,8 +25,11 @@
             max-width: 320px; margin: 100px auto; padding: 25px; 
             background: #161b22; border: 1px solid #30363d; border-radius: 12px;
         }
-        #app-content { display: none; } /* Oculto por defecto */
+        #app-content { display: none; } 
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
+        
+        .prog-item { border-bottom:1px solid #333; padding:12px 0; }
+        .prog-item:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -35,20 +39,31 @@
     <h2>🌱 Riego Cloud</h2>
     <p style="color: #8b949e; font-size: 14px;">Introduce la contraseña de acceso</p>
     <input type="password" id="passInput" placeholder="••••" maxlength="8" onkeydown="if(event.key==='Enter') verificarPassword()"><br><br>
-    <button class="btn active" style="padding: 10px 20px; flex: none; width: 100%;" onclick="verificarPassword()">INGRESAR</button>
+    <button class="btn active" style="padding: 10px 20px; width: 100%;" onclick="verificarPassword()">INGRESAR</button>
     <div id="error" class="error-msg">⚠️ Contraseña incorrecta</div>
 </div>
 
-<!-- 📊 CONTENIDO DE LA APP (OCULTO ANTES DEL LOGIN) -->
+<!-- 📊 CONTENIDO DE LA APP -->
 <div id="app-content">
     <h2>🌱 RIEGO CLOUD</h2>
     <p>RELOJ: <span id='hora'>--:--:--</span> | <span id='temp' class='on'>--</span>°C</p>
-    <div id="status" style="font-size: 10px; color: #8b949e;">Iniciando conexión con Shiftr.io...</div>
+    <div id="status" style="font-size: 11px; color: #8b949e; margin-bottom: 15px;">Iniciando conexión con Shiftr.io...</div>
 
     <div class='container'>
-        <details open><summary>📅 PROGRAMAS</summary><div id='listaProg' style='padding:10px;'></div><button class='btn active' style='margin:10px; width:calc(100% - 20px);' onclick='addP()'>+ AÑADIR</button></details>
+        <details open>
+            <summary>📅 PROGRAMAS</summary>
+            <div id='listaProg' style='padding:0 10px;'></div>
+            <button class='btn active' style='margin:12px; width:calc(100% - 24px);' onclick='addP()'>+ AÑADIR PROGRAMA</button>
+        </details>
+        
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
-        <div class='card chart-card'><strong>Historial 24h</strong><canvas id='myChart'></canvas></div>
+        
+        <div class='card chart-card'>
+            <strong style="display:block; margin-bottom:8px;">Historial 24h</strong>
+            <div style="position: relative; height: 180px; width: 100%;">
+                <canvas id='myChart'></canvas>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -61,19 +76,20 @@
         if (input === CLAVE_CORRECTA) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-            conectarMQTT(); // Conecta a MQTT solo si la clave es correcta
+            conectarMQTT();
+            renderP(); 
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
         }
     }
 
-    // --- CONEXIÓN MQTT SHIFTR.IO (Encapsulada en una función) ---
+    // --- CONEXIÓN MQTT SHIFTR.IO ---
     let mqttClient;
     
     function conectarMQTT() {
         mqttClient = mqtt.connect('wss://public:public@public.cloud.shiftr.io', {
-          clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
+            clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
         });
         
         mqttClient.on('connect', () => {
@@ -92,25 +108,57 @@
         });
     }
 
-    // --- LÓGICA DE INTERFAZ ---
+    // --- LÓGICA DE INTERFAZ Y HISTORIAL ---
     let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     const ctx = document.getElementById('myChart').getContext('2d');
-    const myChart = new Chart(ctx, { type: 'line', data: { labels: Array.from({length: 24}, (_, i) => i+'h'), datasets: [{ data: [], borderColor: '#58a6ff', tension: 0.4, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.1)', pointRadius:1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}}, grid: {display:false} } }, plugins: { legend: {display:false} } } });
+    const myChart = new Chart(ctx, { 
+        type: 'line', 
+        data: { 
+            labels: Array.from({length: 24}, (_, i) => i+'h'), 
+            datasets: [{ 
+                data: Array(24).fill(0), 
+                borderColor: '#58a6ff', 
+                tension: 0.4, 
+                fill: true, 
+                backgroundColor: 'rgba(88, 166, 255, 0.1)', 
+                pointRadius:1 
+            }] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            scales: { 
+                y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, 
+                x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } 
+            }, 
+            plugins: { legend: {display:false} } 
+        } 
+    });
 
     function up(data){
         let p = data.split('|');
         if(p.length < 8) return;
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
-        if(p[8]){ myChart.data.datasets[0].data = p[8].split(',').map(Number); myChart.update('none'); }
+        
+        if(p[8]){ 
+            myChart.data.datasets[0].data = p[8].split(',').map(Number); 
+            myChart.update('none'); 
+        }
         
         let vH=''; 
-        for(let i=1;i<=3;i++){
-            vH+=`<div class='card'><b>EV ${i}</b> <span class='${p[i]=='1'?'on':'off'}' style='float:right; font-size:12px'>${p[i]=='1'?'● ON':'○ OFF'}</span><div class='btn-group'>`;
-            [0,1,2].forEach(m=>{
-                vH+=`<button class='btn ${p[i+3]==m?'active':''}' onclick='enviarComando("SET_M:${i}:${m}")'>${m==0?'OFF':m==1?'ON':'AUTO'}</button>`;
+        for(let i=1; i<=3; i++){
+            // Cambia el símbolo dinámicamente si está abierta (💧) o cerrada (❌)
+            let estadoValvula = p[i] == '1' ? 'on' : 'off';
+            let textoValvula = p[i] == '1' ? '💧 Abierta' : '❌ Cerrada';
+            
+            vH += `<div class='card'><b>🚰 EV ${i}</b> <span class='${estadoValvula}' style='float:right; font-size:12px; font-weight:bold;'>${textoValvula}</span><div class='btn-group'>`;
+            [0,1,2].forEach(m => {
+                let modoActivo = p[i+3] == m ? 'active' : '';
+                let textoModo = m == 0 ? 'OFF' : m == 1 ? 'ON' : 'AUTO';
+                vH += `<button class='btn ${modoActivo}' onclick='enviarComando("SET_M:${i}:${m}")'>${textoModo}</button>`;
             });
-            vH+='</div></div>';
+            vH += '</div></div>';
         }
         document.getElementById('valvulas').innerHTML = vH;
     }
@@ -121,18 +169,20 @@
         }
     }
 
+    // --- AUTOMATIZACIÓN (TICK DE CONTROL) ---
     function tick(){
-        // Evita ejecutar lógica si aún no nos hemos logueado o si no hay datos
         if(document.getElementById('app-content').style.display !== 'block') return;
         
         let hStr = document.getElementById('hora').innerHTML;
         if(hStr == '--:--:--') return;
+        
         let cur = hStr.substring(0,5);
-        let curD = new Date().getDay();
+        let curD = new Date().getDay(); 
         let ex = [0,0,0];
+        
         progs.forEach(p => {
             if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){
-                p.evs.forEach((v, idx) => { if(v) ex[idx]=1; });
+                p.evs.forEach((v, idx) => { if(v) ex[idx] = 1; });
             }
         });
         enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
@@ -140,16 +190,70 @@
 
     setInterval(tick, 5000);
 
-    function addP(){ if(progs.length>=5) return; progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); renderP(); }
+    // --- GESTIÓN DE PROGRAMAS (CRUD) ---
+    function addP(){ 
+        if(progs.length >= 5) {
+            alert("Máximo 5 programas permitidos.");
+            return; 
+        }
+        progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
+        renderP(); 
+    }
     
-    // Función añadida para manejar la selección de electroválvulas de forma segura
     function tglEv(pIdx, vIdx) {
         progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx];
         renderP();
     }
 
-    function renderP(){ localStorage.setItem('riegodb', JSON.stringify(progs)); let h=''; progs.forEach((p,i)=>{ h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP()'><br><div class='btn-group'>`; ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); h+=`</div><div class='btn-group'>`; p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='tglEv(${i},${vidx})'>EV${vidx+1}</button>`; }); h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP()'>🗑</button></div></div>`; }); document.getElementById('listaProg').innerHTML=h; }
-    function tglDay(p, d){ let pos=progs[p].days.indexOf(d); if(pos>-1) progs[p].days.splice(pos,1); else progs[p].days.push(d); renderP(); }
+    function tglDay(pIdx, dIdx){ 
+        let pos = progs[pIdx].days.indexOf(dIdx); 
+        if(pos > -1) progs[pIdx].days.splice(pos, 1); 
+        else progs[pIdx].days.push(dIdx); 
+        renderP(); 
+    }
+
+    function eliminarP(index) {
+        progs.splice(index, 1);
+        renderP();
+    }
+
+    function actualizarHoraProg(index, tipo, valor) {
+        progs[index][tipo] = valor;
+        localStorage.setItem('riegodb', JSON.stringify(progs));
+    }
+
+    function renderP(){ 
+        localStorage.setItem('riegodb', JSON.stringify(progs)); 
+        let h = ''; 
+        
+        progs.forEach((p, i) => { 
+            h += `<div class='prog-item'>
+                <b>P${i+1}</b> 
+                <input type='checkbox' ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'> | 
+                <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> a 
+                <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
+                <br>
+                <div class='btn-group'>`; 
+            
+            ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
+                let diaActivo = p.days.includes(idx) ? 'active' : '';
+                h += `<button class='btn ${diaActivo}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; 
+            }); 
+            
+            h += `</div><div class='btn-group'>`; 
+            
+            p.evs.forEach((v, vidx) => { 
+                let evActiva = v ? 'active' : '';
+                // Se añade el icono de grifo/válvula también en los selectores de los programas
+                h += `<button class='btn ${evActiva}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</button>`; 
+            }); 
+            
+            h += `<button class='btn' style='background:#f85149; flex:0.5' onclick='eliminarP(${i})'>🗑</button></div></div>`; 
+        }); 
+        
+        document.getElementById('listaProg').innerHTML = h; 
+    }
+
     renderP();
 </script>
 </body>
