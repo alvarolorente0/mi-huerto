@@ -25,6 +25,9 @@
         }
         #app-content { display: none; }
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
+        .btn-save { background: #238636; color: white; width: calc(100% - 20px); margin: 5px 10px 15px 10px; font-size: 14px; padding: 12px; border-radius: 8px;}
+        .btn-save:not(:disabled):hover { background: #2ea043; }
+        .btn-save:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -43,7 +46,12 @@
     <div id="status" style="font-size: 10px; color: #8b949e;">Iniciando conexión con Shiftr.io...</div>
 
     <div class='container'>
-        <details open><summary>📅 PROGRAMAS EN LA NUBE</summary><div id='listaProg' style='padding:10px;'>Cargando programas desde el dispositivo...</div><button class='btn active' style='margin:10px; width:calc(100% - 20px);' onclick='addP()'>+ AÑADIR PROGRAMA</button></details>
+        <details open>
+            <summary>📅 CONFIGURACIÓN DE PROGRAMAS</summary>
+            <div id='listaProg' style='padding:10px;'>Cargando programas...</div>
+            <button class='btn' style='margin:10px 10px 5px 10px; width:calc(100% - 20px); background:#30363d;' onclick='addP()'>+ AÑADIR PROGRAMA</button>
+            <button id="btnGuardar" class='btn btn-save' onclick='enviarProgsAlHardware()' disabled>💾 GUARDAR CAMBIOS EN LA NUBE</button>
+        </details>
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         <div class='card chart-card'><strong>Historial 24h</strong><canvas id='myChart'></canvas></div>
     </div>
@@ -51,7 +59,8 @@
 
 <script>
     const CLAVE_CORRECTA = "1234";
-    let progs = []; // Ahora inicia vacío, se rellenará desde el Arduino
+    let progs = []; 
+    let editado = false; // Controla si hay cambios pendientes por guardar
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
@@ -75,15 +84,19 @@
             document.getElementById('status').innerHTML = "🟢 CONECTADO. SINCRONIZANDO...";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
-            mqttClient.subscribe('CVH/riego/progs'); // Tópico para recibir programas
+            mqttClient.subscribe('CVH/riego/progs'); 
             
-            // Pedimos al hardware que nos mande los programas guardados
             setTimeout(() => { enviarComando("GET_PROGS"); }, 1000);
         });
 
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
-            if(topic === 'CVH/riego/progs') procesarProgramasRemotos(message.toString());
+            if(topic === 'CVH/riego/progs') {
+                // Solo aceptamos la lista remota si nosotros no estamos editando activamente
+                if(!editado) {
+                    procesarProgramasRemotos(message.toString());
+                }
+            }
         });
 
         mqttClient.on('error', (err) => {
@@ -117,7 +130,6 @@
         if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd);
     }
 
-    // Envía la lista completa al Arduino formateada en texto plano corto
     function enviarProgsAlHardware() {
         if(!mqttClient || !mqttClient.connected) return;
         let str = "SAVE_PROGS|";
@@ -127,9 +139,13 @@
             str += `${p.en?'1':'0'},${p.on},${p.off},${evsBin},${diasBin};`;
         });
         mqttClient.publish('CVH/riego/cmd', str);
+        
+        // Cambios guardados con éxito
+        marcarCambios(false);
+        document.getElementById('status').innerHTML = "🟢 CAMBIOS GUARDADOS EN LA NUBE";
+        setTimeout(() => { document.getElementById('status').innerHTML = "🟢 CONECTADO"; }, 3000);
     }
 
-    // Recibe el string condensado del Arduino y reconstruye el array 'progs'
     function procesarProgramasRemotos(data) {
         if(!data || data === "NONE") { progs = []; renderP(); return; }
         let lista = data.split(';');
@@ -143,15 +159,9 @@
             let days = [];
             tokens[4].split('').forEach((v, i) => { if(v === '1') days.push(i); });
             
-            progs.push({
-                en: tokens[0] === '1',
-                on: tokens[1],
-                off: tokens[2],
-                evs: evs,
-                days: days
-            });
+            progs.push({ en: tokens[0] === '1', on: tokens[1], off: tokens[2], evs: evs, days: days });
         });
-        renderP(false); // Renderiza sin volver a guardar en bucle
+        renderP();
     }
 
     function tick(){
@@ -172,23 +182,45 @@
 
     setInterval(tick, 5000);
 
-    function addP(){ if(progs.length>=5) return; progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); renderP(true); }
+    function marcarCambios(estado) {
+        editado = estado;
+        const btn = document.getElementById('btnGuardar');
+        btn.disabled = !estado;
+        if(estado) {
+            btn.innerHTML = "⚠️ GUARDAR CAMBIOS PENDIENTES";
+            document.getElementById('status').innerHTML = "🟡 TIENES CAMBIOS SIN GUARDAR";
+        } else {
+            btn.innerHTML = "💾 GUARDAR CAMBIOS EN LA NUBE";
+        }
+    }
+
+    function addP(){ 
+        if(progs.length>=5) return; 
+        progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); 
+        marcarCambios(true);
+        renderP(); 
+    }
     
-    function renderP(subirAlHardware = true){ 
+    function renderP(){ 
         let h=''; 
         if(progs.length === 0) h = "<p style='color:#8b949e'>No hay programas configurados.</p>";
         progs.forEach((p,i)=>{ 
-            h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP(true)'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP(true)'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP(true)'><br><div class='btn-group'>`; 
+            h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;marcarCambios(true);renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;marcarCambios(true);renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;marcarCambios(true);renderP()'><br><div class='btn-group'>`; 
             ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); 
             h+=`</div><div class='btn-group'>`; 
-            p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];renderP(true)'>EV${vidx+1}</button>`; }); 
-            h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP(true)'>🗑</button></div></div>`; 
+            p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];marcarCambios(true);renderP()'>EV${vidx+1}</button>`; }); 
+            h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);marcarCambios(true);renderP()'>🗑</button></div></div>`; 
         }); 
         document.getElementById('listaProg').innerHTML=h; 
-        if(subirAlHardware) enviarProgsAlHardware();
     }
     
-    function tglDay(p, d){ let pos=progs[p].days.indexOf(d); if(pos>-1) progs[p].days.splice(pos,1); else progs[p].days.push(d); renderP(true); }
+    function tglDay(p, d){ 
+        let pos=progs[p].days.indexOf(d); 
+        if(pos>-1) progs[p].days.splice(pos,1); 
+        else progs[p].days.push(d); 
+        marcarCambios(true);
+        renderP(); 
+    }
 </script>
 </body>
 </html>
