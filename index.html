@@ -1,223 +1,54 @@
 <!DOCTYPE HTML>
-<html lang="es">
+<html>
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <title>Riego Smart Cloud</title>
-    <!-- Librerías estables vía CDN -->
     <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        :root {
-            --bg-main: #0d1117;
-            --bg-card: #161b22;
-            --bg-input: #21262d;
-            --border-color: #30363d;
-            --text-main: #c9d1d9;
-            --text-muted: #8b949e;
-            --accent-green: #238636;
-            --accent-green-hover: #2ea043;
-            --accent-blue: #1f6feb;
-            --accent-red: #f85149;
-        }
-
-        body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg-main);
-            color: var(--text-main);
-            margin: 0;
-            padding: 15px;
-            text-align: center;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: auto;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 16px;
-        }
-
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
-            flex: 1 1 280px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .card:hover {
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 6px;
-            margin-top: 10px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 10px 4px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            background: var(--bg-input);
-            color: var(--text-muted);
-            font-weight: bold;
-            font-size: 12px;
-            transition: background 0.2s, color 0.2s, transform 0.1s;
-        }
-
-        .btn:hover {
-            background: #30363d;
-            color: white;
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .active { background: var(--accent-green) !important; color: white !important; }
-        .active-blue { background: var(--accent-blue) !important; color: white !important; }
-        .on { color: #3fb950; font-weight: bold; }
-        .off { color: var(--accent-red); font-weight: bold; }
+        body{font-family:sans-serif; background:#0d1117; color:#c9d1d9; margin:0; padding:10px; text-align:center;}
+        .container{max-width:900px; margin:auto; display:flex; flex-wrap:wrap; justify-content:center; gap:12px;}
+        .card{background:#161b22; border:1px solid #30363d; border-radius:12px; padding:12px; flex:1 1 280px;}
+        .btn-group{display:flex; gap:4px; margin-top:8px;}
+        .btn{flex:1; padding:10px 2px; border-radius:6px; border:none; cursor:pointer; background:#21262d; color:white; font-weight:bold; font-size:12px;}
+        .active{background:#238636;}
+        .on{color:#3fb950;} .off{color:#f85149;}
+        details{width:100%; background:#161b22; border:1px solid #30363d; border-radius:12px; text-align:left;}
+        summary{padding:12px; cursor:pointer; font-weight:bold;}
+        .chart-card{width:100%; height:220px;}
+        input[type=time], input[type=password]{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
         
-        /* --- ACORDEÓN Y PROGRAMAS POTENCIADOS --- */
-        details { width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; text-align: left; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-        summary { padding: 14px; cursor: pointer; font-weight: bold; background: #1f242c; user-select: none; outline: none; }
-        summary:hover { background: #262c36; }
-        
-        .prog-card {
-            background: var(--bg-main);
-            border: 1px solid #21262d;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        
-        .prog-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #21262d;
-            padding-bottom: 10px;
-        }
-        
-        .prog-title { font-weight: bold; color: #58a6ff; display: flex; align-items: center; gap: 6px; }
-        .prog-time-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-        
-        .chart-card { width: 100%; height: 240px; }
-        
-        input[type=time], input[type=password] {
-            background: var(--bg-card);
-            color: white;
-            border: 1px solid var(--border-color);
-            padding: 6px 10px;
-            border-radius: 6px;
-            text-align: center;
-            font-family: inherit;
-        }
-        input[type=time]:focus, input[type=password]:focus { border-color: #58a6ff; outline: none; }
-        
-        /* Switch deslizante Premium */
-        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-input); border: 1px solid var(--border-color); transition: .2s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: var(--text-muted); transition: .2s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--accent-green); border-color: var(--accent-green-hover); }
-        input:checked + .slider:before { transform: translateX(20px); background-color: white; }
-
-        .valvula-header { display: flex; align-items: center; justify-content: space-between; font-weight: bold; font-size: 15px; }
-        .valvula-icon { display: flex; align-items: center; gap: 8px; }
-
-        /* --- PANTALLA DE LOGIN --- */
+        /* --- ESTILOS DE LA PANTALLA DE LOGIN --- */
         #login-screen {
-            max-width: 320px; margin: 120px auto; padding: 30px; 
-            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            max-width: 320px; margin: 100px auto; padding: 25px; 
+            background: #161b22; border: 1px solid #30363d; border-radius: 12px;
         }
-        #app-content { display: none; }
-        .error-msg { color: var(--accent-red); font-size: 13px; margin-top: 12px; display: none; font-weight: bold; }
+        #app-content { display: none; } /* Oculto por defecto */
+        .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
 
 <!-- 🔐 PANTALLA DE ACCESO -->
 <div id="login-screen">
-    <h2 style="margin-top:0;">🌱 Riego Cloud</h2>
-    <p style="color: var(--text-muted); font-size: 14px;">Introduce la contraseña de acceso</p>
+    <h2>🌱 Riego Cloud</h2>
+    <p style="color: #8b949e; font-size: 14px;">Introduce la contraseña de acceso</p>
     <input type="password" id="passInput" placeholder="••••" maxlength="8" onkeydown="if(event.key==='Enter') verificarPassword()"><br><br>
-    <button class="btn active" style="padding: 12px; width: 100%; font-size:14px;" onclick="verificarPassword()">INGRESAR</button>
+    <button class="btn active" style="padding: 10px 20px; flex: none; width: 100%;" onclick="verificarPassword()">INGRESAR</button>
     <div id="error" class="error-msg">⚠️ Contraseña incorrecta</div>
 </div>
 
 <!-- 📊 CONTENIDO DE LA APP (OCULTO ANTES DEL LOGIN) -->
 <div id="app-content">
-    <h2 style="margin-bottom: 4px; letter-spacing: 1px;">🌱 RIEGO SMART CLOUD</h2>
-    <p style="margin-top: 0; color: var(--text-muted);">RELOJ: <span id='hora' style="color:white; font-weight:bold;">--:--:--</span> | <span id='temp' class='on'>--</span>°C</p>
-    <div id="status" style="font-size: 11px; color: var(--text-muted); margin-bottom: 15px;">Iniciando conexión con Shiftr.io...</div>
+    <h2>🌱 RIEGO CLOUD</h2>
+    <p>RELOJ: <span id='hora'>--:--:--</span> | <span id='temp' class='on'>--</span>°C</p>
+    <div id="status" style="font-size: 10px; color: #8b949e;">Iniciando conexión con Shiftr.io...</div>
 
     <div class='container'>
-        <!-- 📅 SECCIÓN DE PROGRAMAS MULTI-VÁLVULA -->
-        <details open>
-            <summary>📅 PROGRAMACIÓN HORARIA AUTOMÁTICA</summary>
-            <div id='listaProg' style='padding:14px; background: var(--bg-card);'></div>
-            <button class='btn active' style='margin: 0 14px 14px 14px; width: calc(100% - 28px); padding: 12px; font-size: 13px;' onclick='addP()'>+ AÑADIR NUEVO PROGRAMA</button>
-        </details>
-        
-        <!-- 🚰 CONTROLES MANUALES ESTRUCTURADOS FIJOS -->
-        <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'>
-            <!-- EV 1 -->
-            <div class='card'>
-                <div class='valvula-header'>
-                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 1</b></span>
-                    <span id="evState-1" class="off">○ CERRADA</span>
-                </div>
-                <div class='btn-group'>
-                    <button id="btn-1-0" class="btn" onclick="seleccionarModoManual(1,0)">OFF</button>
-                    <button id="btn-1-1" class="btn" onclick="seleccionarModoManual(1,1)">ON</button>
-                    <button id="btn-1-2" class="btn" onclick="seleccionarModoManual(1,2)">AUTO</button>
-                </div>
-            </div>
-            <!-- EV 2 -->
-            <div class='card'>
-                <div class='valvula-header'>
-                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 2</b></span>
-                    <span id="evState-2" class="off">○ CERRADA</span>
-                </div>
-                <div class='btn-group'>
-                    <button id="btn-2-0" class="btn" onclick="seleccionarModoManual(2,0)">OFF</button>
-                    <button id="btn-2-1" class="btn" onclick="seleccionarModoManual(2,1)">ON</button>
-                    <button id="btn-2-2" class="btn" onclick="seleccionarModoManual(2,2)">AUTO</button>
-                </div>
-            </div>
-            <!-- EV 3 -->
-            <div class='card'>
-                <div class='valvula-header'>
-                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 3</b></span>
-                    <span id="evState-3" class="off">○ CERRADA</span>
-                </div>
-                <div class='btn-group'>
-                    <button id="btn-3-0" class="btn" onclick="seleccionarModoManual(3,0)">OFF</button>
-                    <button id="btn-3-1" class="btn" onclick="seleccionarModoManual(3,1)">ON</button>
-                    <button id="btn-3-2" class="btn" onclick="seleccionarModoManual(3,2)">AUTO</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- 📈 GRÁFICO POTENCIADO -->
-        <div class='card chart-card'>
-            <strong>Historial de Temperatura (24h)</strong>
-            <div style="height:180px; margin-top:10px;"><canvas id='myChart'></canvas></div>
-        </div>
+        <details open><summary>📅 PROGRAMAS</summary><div id='listaProg' style='padding:10px;'></div><button class='btn active' style='margin:10px; width:calc(100% - 20px);' onclick='addP()'>+ AÑADIR</button></details>
+        <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
+        <div class='card chart-card'><strong>Historial 24h</strong><canvas id='myChart'></canvas></div>
     </div>
 </div>
 
@@ -230,15 +61,14 @@
         if (input === CLAVE_CORRECTA) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-            inicializarGrafico();
-            conectarMQTT();
+            conectarMQTT(); // Conecta a MQTT solo si la clave es correcta
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
         }
     }
 
-    // --- CONEXIÓN MQTT SHIFTR.IO ---
+    // --- CONEXIÓN MQTT SHIFTR.IO (Encapsulada en una función) ---
     let mqttClient;
     
     function conectarMQTT() {
@@ -247,116 +77,42 @@
         });
         
         mqttClient.on('connect', () => {
-            let statusDiv = document.getElementById('status');
-            statusDiv.innerHTML = "🟢 CONECTADO A SHIFTR.IO";
-            statusDiv.style.color = "#3fb950";
+            document.getElementById('status').innerHTML = "🟢 CONECTADO A SHIFTR.IO";
+            document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
         });
 
         mqttClient.on('message', (topic, message) => {
-            if(topic === 'CVH/riego/data') procesarTelemetria(message.toString());
+            if(topic === 'CVH/riego/data') up(message.toString());
         });
 
-        mqttClient.on('error', () => {
-            let statusDiv = document.getElementById('status');
-            statusDiv.innerHTML = "🔴 ERROR DE CONEXIÓN CON EL BROKER";
-            statusDiv.style.color = "#f85149";
+        mqttClient.on('error', (err) => {
+            document.getElementById('status').innerHTML = "🔴 ERROR DE CONEXIÓN";
+            document.getElementById('status').style.color = "#f85149";
         });
     }
 
-    // --- BASE DE DATOS LOCAL (LOCALSTORAGE) ---
-    let datosPrevios = localStorage.getItem('riegodb');
-    if (datosPrevios && !datosPrevios.includes('"evs"')) {
-        localStorage.removeItem('riegodb');
-    }
+    // --- LÓGICA DE INTERFAZ ---
     let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const myChart = new Chart(ctx, { type: 'line', data: { labels: Array.from({length: 24}, (_, i) => i+'h'), datasets: [{ data: [], borderColor: '#58a6ff', tension: 0.4, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.1)', pointRadius:1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}}, grid: {display:false} } }, plugins: { legend: {display:false} } } });
 
-    // --- GRÁFICO CHART.JS CON DEGRADADO ---
-    let myChart;
-    function inicializarGrafico() {
-        const ctx = document.getElementById('myChart').getContext('2d');
-        const gradient = ctx.createLinearGradient(0, 0, 0, 160);
-        gradient.addColorStop(0, 'rgba(88, 166, 255, 0.25)');
-        gradient.addColorStop(1, 'rgba(88, 166, 255, 0.0)');
-
-        myChart = new Chart(ctx, { 
-            type: 'line', 
-            data: { 
-                labels: Array.from({length: 24}, (_, i) => i+'h'), 
-                datasets: [{ 
-                    data: [], 
-                    borderColor: '#58a6ff', 
-                    borderWidth: 2,
-                    tension: 0.4, 
-                    fill: true, 
-                    backgroundColor: gradient, 
-                    pointRadius: 2,
-                    pointBackgroundColor: '#58a6ff'
-                }] 
-            }, 
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                scales: { 
-                    y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#21262d'} }, 
-                    x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } 
-                }, 
-                plugins: { legend: {display:false} } 
-            } 
-        });
-    }
-
-    // --- PROCESAR DATOS DEL ARDUINO ---
-    function procesarTelemetria(data){
+    function up(data){
         let p = data.split('|');
         if(p.length < 8) return;
-        
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
+        if(p[8]){ myChart.data.datasets[0].data = p[8].split(',').map(Number); myChart.update('none'); }
         
-        if(p[8] && myChart){ 
-            myChart.data.datasets[0].data = p[8].split(',').map(Number); 
-            myChart.update('none'); 
-        }
-        
-        // ACTUALIZACIÓN DE ESTADOS SIN REDIBUJAR EL DOM
-        for(let i = 1; i <= 3; i++) {
-            // 1. Cambiar texto de estado Abierta/Cerrada
-            let estadoSpan = document.getElementById(`evState-${i}`);
-            if (estadoSpan) {
-                if (p[i] == '1') {
-                    estadoSpan.innerHTML = "● ABIERTA";
-                    estadoSpan.className = "on";
-                } else {
-                    estadoSpan.innerHTML = "○ CERRADA";
-                    estadoSpan.className = "off";
-                }
-            }
-
-            // 2. Refrescar estado de los tres botones (OFF, ON, AUTO) de esta válvula
-            [0, 1, 2].forEach(m => {
-                let boton = document.getElementById(`btn-${i}-${m}`);
-                if (boton) {
-                    if (p[i+3] == m) {
-                        boton.classList.add('active');
-                    } else {
-                        boton.classList.remove('active');
-                    }
-                }
+        let vH=''; 
+        for(let i=1;i<=3;i++){
+            vH+=`<div class='card'><b>EV ${i}</b> <span class='${p[i]=='1'?'on':'off'}' style='float:right; font-size:12px'>${p[i]=='1'?'● ON':'○ OFF'}</span><div class='btn-group'>`;
+            [0,1,2].forEach(m=>{
+                vH+=`<button class='btn ${p[i+3]==m?'active':''}' onclick='enviarComando("SET_M:${i}:${m}")'>${m==0?'OFF':m==1?'ON':'AUTO'}</button>`;
             });
+            vH+='</div></div>';
         }
-    }
-
-    // Acción inmediata al pulsar un botón manual antes de esperar la respuesta del broker
-    function seleccionarModoManual(valvula, modo) {
-        // Apaga visualmente los botones hermanos y enciende el seleccionado de inmediato
-        [0, 1, 2].forEach(m => {
-            document.getElementById(`btn-${valvula}-${m}`).classList.remove('active');
-        });
-        document.getElementById(`btn-${valvula}-${modo}`).classList.add('active');
-        
-        // Envía el comando al Arduino
-        enviarComando(`SET_M${valvula}-${modo}`);
+        document.getElementById('valvulas').innerHTML = vH;
     }
 
     function enviarComando(cmd) {
@@ -365,114 +121,28 @@
         }
     }
 
-    // --- MOTOR DEL PROGRAMADOR (TICKER) ---
     function tick(){
+        // Evita ejecutar lógica si aún no nos hemos logueado o si no hay datos
         if(document.getElementById('app-content').style.display !== 'block') return;
         
         let hStr = document.getElementById('hora').innerHTML;
         if(hStr == '--:--:--') return;
-        
         let cur = hStr.substring(0,5);
         let curD = new Date().getDay();
         let ex = [0,0,0];
-        
         progs.forEach(p => {
             if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){
-                if(p.evs && Array.isArray(p.evs)) {
-                    p.evs.forEach((v, idx) => { if(v) ex[idx]=1; });
-                }
+                p.evs.forEach((v, idx) => { if(v) ex[idx]=1; });
             }
         });
-        enviarComando(`AUTO${ex[0]}-${ex[1]}-${ex[2]}`);
+        enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
     }
+
     setInterval(tick, 5000);
 
-    // --- GESTIÓN AVANZADA DE PROGRAMAS ---
-    function addP(){ 
-        if(progs.length >= 10) return; 
-        progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
-        guardarYRenderizar(); 
-    }
-    
-    function cambiarValvula(progIdx, evIdx) {
-        progs[progIdx].evs[evIdx] = !progs[progIdx].evs[evIdx];
-        guardarYRenderizar();
-    }
-
-    function tglDay(p, d){ 
-        let pos = progs[p].days.indexOf(d); 
-        if(pos > -1) progs[p].days.splice(pos,1); 
-        else progs[p].days.push(d); 
-        guardarYRenderizar(); 
-    }
-
-    function cambiarInputTime(progIdx, campo, valor) {
-        progs[progIdx][campo] = valor;
-        localStorage.setItem('riegodb', JSON.stringify(progs));
-    }
-
-    function cambiarEstadoProg(progIdx, estado) {
-        progs[progIdx].en = estado;
-        localStorage.setItem('riegodb', JSON.stringify(progs));
-    }
-
-    function eliminarProg(progIdx) {
-        progs.splice(progIdx, 1);
-        guardarYRenderizar();
-    }
-
-    function guardarYRenderizar() {
-        localStorage.setItem('riegodb', JSON.stringify(progs)); 
-        renderP();
-    }
-
-    function renderP(){ 
-        let h=''; 
-        progs.forEach((p, i)=>{ 
-            if(!p.evs) p.evs = [true, false, false];
-            
-            h+=`<div class='prog-card'>
-                    <div class='prog-header'>
-                        <span class='prog-title'>📋 Programa ${i+1}</span>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <label class="switch">
-                                <input type="checkbox" ${p.en?'checked':''} onchange='cambiarEstadoProg(${i}, this.checked)'>
-                                <span class="slider"></span>
-                            </label>
-                            <button class='btn' style='background:var(--accent-red); color:white; padding:6px 10px; flex:none; border-radius:6px;' onclick='eliminarProg(${i})'>🗑</button>
-                        </div>
-                    </div>
-                    
-                    <div class='prog-time-group'>
-                        <span>⏰ Rango Horario:</span>
-                        <input type='time' value='${p.on}' onchange='cambiarInputTime(${i}, "on", this.value)'>
-                        <span>a</span>
-                        <input type='time' value='${p.off}' onchange='cambiarInputTime(${i}, "off", this.value)'>
-                    </div>
-
-                    <div>
-                        <div style='font-size:12px; color:var(--text-muted); margin-bottom:5px;'>Días de riego:</div>
-                        <div class='btn-group'>`;
-            ['D','L','M','X','J','V','S'].forEach((d, idx)=>{ 
-                h+=`<button class='btn ${p.days.includes(idx)?'active':''}' style='padding:6px 0;' onclick='tglDay(${i},${idx})'>${d}</button>`; 
-            });
-            h+=`        </div>
-                    </div>
-
-                    <div>
-                        <div style='font-size:12px; color:var(--text-muted); margin-bottom:5px;'>Asignación de Electroválvulas (Multiselección):</div>
-                        <div class='btn-group'>`;
-            
-            p.evs.forEach((v, vidx)=>{ 
-                h+=`<button class='btn ${v?'active-blue':''}' style='padding:8px 0;' onclick='cambiarValvula(${i}, ${vidx})'>🚰 EV ${vidx+1}</button>`; 
-            });
-            h+=`        </div>
-                    </div>
-                </div>`; 
-        }); 
-        document.getElementById('listaProg').innerHTML = h; 
-    }
-
+    function addP(){ if(progs.length>=5) return; progs.push({on:'08:00',off:'08:30',evs:[true,false,false],days:[1,2,3,4,5],en:true}); renderP(); }
+    function renderP(){ localStorage.setItem('riegodb', JSON.stringify(progs)); let h=''; progs.forEach((p,i)=>{ h+=`<div style='border-bottom:1px solid #333;padding:12px 0;'><b>P${i+1}</b> <input type='checkbox' ${p.en?'checked':''} onchange='progs[${i}].en=this.checked;renderP()'> | <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value;renderP()'> a <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value;renderP()'><br><div class='btn-group'>`; ['D','L','M','X','J','V','S'].forEach((d,idx)=>{ h+=`<button class='btn day-btn ${p.days.includes(idx)?'active':''}' onclick='tglDay(${i},${idx})'>${d}</button>`; }); h+=`</div><div class='btn-group'>`; p.evs.forEach((v,vidx)=>{ h+=`<button class='btn ${v?'active':''}' onclick='progs[${i}].evs[vidx]=!progs[${i}].evs[vidx];renderP()'>EV${vidx+1}</button>`; }); h+=`<button class='btn' style='background:#f85149;flex:0.5' onclick='progs.splice(${i},1);renderP()'>🗑</button></div></div>`; }); document.getElementById('listaProg').innerHTML=h; }
+    function tglDay(p, d){ let pos=progs[p].days.indexOf(d); if(pos>-1) progs[p].days.splice(pos,1); else progs[p].days.push(d); renderP(); }
     renderP();
 </script>
 </body>
