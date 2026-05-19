@@ -30,6 +30,9 @@
         
         .prog-item { border-bottom:1px solid #333; padding:12px 0; }
         .prog-item:last-child { border-bottom: none; }
+        
+        /* --- ESTILO PREVISIÓN --- */
+        .aemet-info { color: #58a6ff; font-weight: bold; margin-left: 10px; font-size: 14px;}
     </style>
 </head>
 <body>
@@ -46,7 +49,11 @@
 <!-- 📊 CONTENIDO DE LA APP -->
 <div id="app-content">
     <h2>🌱 RIEGO CLOUD</h2>
-    <p>RELOJ: <span id='hora'>--:--:--</span> | <span id='temp' class='on'>--</span>°C</p>
+    <p>
+        RELOJ: <span id='hora'>--:--:--</span> | 
+        Sonda: <span id='temp' class='on'>--</span>°C | 
+        <span id="aemet-prediccion" class="aemet-info">🌤️ AEMET: Cargando previsión...</span>
+    </p>
     <div id="status" style="font-size: 11px; color: #8b949e; margin-bottom: 15px;">Iniciando conexión con Shiftr.io...</div>
 
     <div class='container'>
@@ -70,6 +77,8 @@
 <script>
     // --- CONTROL DE ACCESO ---
     const CLAVE_CORRECTA = "1234";
+    // Código INE del municipio (5 dígitos). Ejemplo: 28079 es Madrid, 08019 es Barcelona, 41091 es Sevilla.
+    const CODIGO_MUNICIPIO = "28079"; 
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
@@ -77,10 +86,54 @@
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
             conectarMQTT();
+            obtenerPrevisionAemet();
             renderP(); 
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
+        }
+    }
+
+    // --- CONSULTA AEMET (XML/JSON PÚBLICO) ---
+    async function obtenerPrevisionAemet() {
+        try {
+            // Usamos la API de predicción municipal en formato abierto de la propia infraestructura de AEMET sin api-key restrictiva
+            const idProvincia = CODIGO_MUNICIPIO.substring(0, 2);
+            const url = `https://www.aemet.es/xml/municipios/localidad_${CODIGO_MUNICIPIO}.xml`;
+            
+            // Usamos un proxy cors público o la API de consulta de datos para procesar el XML
+            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            const datos = await respuesta.json();
+            
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(datos.contents, "text/xml");
+            
+            // Extraemos datos del día de hoy (primer nodo <dia>)
+            const hoy = xmlDoc.getElementsByTagName("dia")[0];
+            
+            // Estado del cielo de la tarde/general (último dato del array de estado_cielo para hoy)
+            const estadosCielo = hoy.getElementsByTagName("estado_cielo");
+            let descripcionCielo = "Variable";
+            for(let i = estadosCielo.length - 1; i >= 0; i--) {
+                let desc = estadosCielo[i].getAttribute("descripcion");
+                if(desc) { descripcionCielo = desc; break; }
+            }
+
+            // Temperaturas
+            const maxima = hoy.getElementsByTagName("maxima")[0].textContent;
+            const minima = hoy.getElementsByTagName("minima")[0].textContent;
+            
+            // Icono dinámico simple según texto descriptivo
+            let icono = "🌤️";
+            if(descripcionCielo.toLowerCase().includes("lluvia") || descripcionCielo.toLowerCase().includes("chubasco")) icono = "🌧️";
+            else if(descripcionCielo.toLowerCase().includes("cubierto") || descripcionCielo.toLowerCase().includes("nuboso")) icono = "☁️";
+            else if(descripcionCielo.toLowerCase().includes("despejado")) icono = "☀️";
+            else if(descripcionCielo.toLowerCase().includes("tormenta")) icono = "⛈️";
+
+            document.getElementById("aemet-prediccion").innerHTML = `${icono} Hoy: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+        } catch (error) {
+            console.error("Error al obtener datos de AEMET:", error);
+            document.getElementById("aemet-prediccion").innerHTML = "⚠️ No se pudo cargar la previsión";
         }
     }
 
@@ -148,7 +201,6 @@
         
         let vH=''; 
         for(let i=1; i<=3; i++){
-            // Cambia el símbolo dinámicamente si está abierta (💧) o cerrada (❌)
             let estadoValvula = p[i] == '1' ? 'on' : 'off';
             let textoValvula = p[i] == '1' ? '💧 Abierta' : '❌ Cerrada';
             
@@ -244,7 +296,6 @@
             
             p.evs.forEach((v, vidx) => { 
                 let evActiva = v ? 'active' : '';
-                // Se añade el icono de grifo/válvula también en los selectores de los programas
                 h += `<button class='btn ${evActiva}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</button>`; 
             }); 
             
