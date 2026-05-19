@@ -173,8 +173,45 @@
             <button class='btn active' style='margin: 0 14px 14px 14px; width: calc(100% - 28px); padding: 12px; font-size: 13px;' onclick='addP()'>+ AÑADIR NUEVO PROGRAMA</button>
         </details>
         
-        <!-- 🚰 CONTROLES MANUALES -->
-        <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
+        <!-- 🚰 CONTROLES MANUALES ESTRUCTURADOS FIJOS -->
+        <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'>
+            <!-- EV 1 -->
+            <div class='card'>
+                <div class='valvula-header'>
+                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 1</b></span>
+                    <span id="evState-1" class="off">○ CERRADA</span>
+                </div>
+                <div class='btn-group'>
+                    <button id="btn-1-0" class="btn" onclick="seleccionarModoManual(1,0)">OFF</button>
+                    <button id="btn-1-1" class="btn" onclick="seleccionarModoManual(1,1)">ON</button>
+                    <button id="btn-1-2" class="btn" onclick="seleccionarModoManual(1,2)">AUTO</button>
+                </div>
+            </div>
+            <!-- EV 2 -->
+            <div class='card'>
+                <div class='valvula-header'>
+                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 2</b></span>
+                    <span id="evState-2" class="off">○ CERRADA</span>
+                </div>
+                <div class='btn-group'>
+                    <button id="btn-2-0" class="btn" onclick="seleccionarModoManual(2,0)">OFF</button>
+                    <button id="btn-2-1" class="btn" onclick="seleccionarModoManual(2,1)">ON</button>
+                    <button id="btn-2-2" class="btn" onclick="seleccionarModoManual(2,2)">AUTO</button>
+                </div>
+            </div>
+            <!-- EV 3 -->
+            <div class='card'>
+                <div class='valvula-header'>
+                    <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA 3</b></span>
+                    <span id="evState-3" class="off">○ CERRADA</span>
+                </div>
+                <div class='btn-group'>
+                    <button id="btn-3-0" class="btn" onclick="seleccionarModoManual(3,0)">OFF</button>
+                    <button id="btn-3-1" class="btn" onclick="seleccionarModoManual(3,1)">ON</button>
+                    <button id="btn-3-2" class="btn" onclick="seleccionarModoManual(3,2)">AUTO</button>
+                </div>
+            </div>
+        </div>
         
         <!-- 📈 GRÁFICO POTENCIADO -->
         <div class='card chart-card'>
@@ -230,7 +267,7 @@
     // --- BASE DE DATOS LOCAL (LOCALSTORAGE) ---
     let datosPrevios = localStorage.getItem('riegodb');
     if (datosPrevios && !datosPrevios.includes('"evs"')) {
-        localStorage.removeItem('riegodb'); // Purga de seguridad si existen datos corruptos de la v1
+        localStorage.removeItem('riegodb');
     }
     let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
 
@@ -282,22 +319,44 @@
             myChart.update('none'); 
         }
         
-        // Renderizado dinámico de tarjetas manuales con iconos🚰
-        let vH=''; 
-        for(let i=1; i<=3; i++){
-            vH+=`<div class='card'>
-                    <div class='valvula-header'>
-                        <span class='valvula-icon'>🚰 <b>ELECTROVÁLVULA ${i}</b></span>
-                        <span class='${p[i]=='1'?'on':'off'}' style='font-size:12px'>${p[i]=='1'?'● ABIERTA':'○ CERRADA'}</span>
-                    </div>
-                    <div class='btn-group'>`;
-            [0,1,2].forEach(m=>{
-                // Formato estricto compatible con Arduino: SET_M[V]-[M]
-                vH+=`<button class='btn ${p[i+3]==m?'active':''}' onclick='enviarComando("SET_M${i}-${m}")'>${m==0?'OFF':m==1?'ON':'AUTO'}</button>`;
+        // ACTUALIZACIÓN DE ESTADOS SIN REDIBUJAR EL DOM
+        for(let i = 1; i <= 3; i++) {
+            // 1. Cambiar texto de estado Abierta/Cerrada
+            let estadoSpan = document.getElementById(`evState-${i}`);
+            if (estadoSpan) {
+                if (p[i] == '1') {
+                    estadoSpan.innerHTML = "● ABIERTA";
+                    estadoSpan.className = "on";
+                } else {
+                    estadoSpan.innerHTML = "○ CERRADA";
+                    estadoSpan.className = "off";
+                }
+            }
+
+            // 2. Refrescar estado de los tres botones (OFF, ON, AUTO) de esta válvula
+            [0, 1, 2].forEach(m => {
+                let boton = document.getElementById(`btn-${i}-${m}`);
+                if (boton) {
+                    if (p[i+3] == m) {
+                        boton.classList.add('active');
+                    } else {
+                        boton.classList.remove('active');
+                    }
+                }
             });
-            vH+='</div></div>';
         }
-        document.getElementById('valvulas').innerHTML = vH;
+    }
+
+    // Acción inmediata al pulsar un botón manual antes de esperar la respuesta del broker
+    function seleccionarModoManual(valvula, modo) {
+        // Apaga visualmente los botones hermanos y enciende el seleccionado de inmediato
+        [0, 1, 2].forEach(m => {
+            document.getElementById(`btn-${valvula}-${m}`).classList.remove('active');
+        });
+        document.getElementById(`btn-${valvula}-${modo}`).classList.add('active');
+        
+        // Envía el comando al Arduino
+        enviarComando(`SET_M${valvula}-${modo}`);
     }
 
     function enviarComando(cmd) {
@@ -324,12 +383,11 @@
                 }
             }
         });
-        // Formato estricto compatible con tu Arduino: AUTO[0]-[1]-[2]
         enviarComando(`AUTO${ex[0]}-${ex[1]}-${ex[2]}`);
     }
     setInterval(tick, 5000);
 
-    // --- GESTIÓN AVANZADA DE PROGRAMAS (PROCESOS AISLADOS) ---
+    // --- GESTIÓN AVANZADA DE PROGRAMAS ---
     function addP(){ 
         if(progs.length >= 10) return; 
         progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
@@ -350,12 +408,12 @@
 
     function cambiarInputTime(progIdx, campo, valor) {
         progs[progIdx][campo] = valor;
-        localStorage.setItem('riegodb', JSON.stringify(progs)); // Guarda silenciosamente sin parpadeos
+        localStorage.setItem('riegodb', JSON.stringify(progs));
     }
 
     function cambiarEstadoProg(progIdx, estado) {
         progs[progIdx].en = estado;
-        localStorage.setItem('riegodb', JSON.stringify(progs)); // Guarda silenciosamente
+        localStorage.setItem('riegodb', JSON.stringify(progs));
     }
 
     function eliminarProg(progIdx) {
@@ -371,7 +429,7 @@
     function renderP(){ 
         let h=''; 
         progs.forEach((p, i)=>{ 
-            if(!p.evs) p.evs = [true, false, false]; // Seguro de inicialización
+            if(!p.evs) p.evs = [true, false, false];
             
             h+=`<div class='prog-card'>
                     <div class='prog-header'>
@@ -415,7 +473,6 @@
         document.getElementById('listaProg').innerHTML = h; 
     }
 
-    // Inicialización de vista
     renderP();
 </script>
 </body>
