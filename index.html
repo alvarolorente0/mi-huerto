@@ -41,7 +41,6 @@
 </head>
 <body>
 
-<!-- 🔐 PANTALLA DE ACCESO -->
 <div id="login-screen">
     <h2>🌱 Riego Cloud</h2>
     <p style="color: #8b949e; font-size: 14px;">Introduce la contraseña de acceso</p>
@@ -50,7 +49,6 @@
     <div id="error" class="error-msg">⚠️ Contraseña incorrecta</div>
 </div>
 
-<!-- 📊 CONTENIDO DE LA APP -->
 <div id="app-content">
     <h2>🌱 RIEGO CLOUD</h2>
     
@@ -79,7 +77,6 @@
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         
-        <!-- 📈 GRÁFICA 1: HISTORIAL DE TEMPERATURAS -->
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px;">Historial Sonda 24h (°C)</strong>
             <div style="position: relative; height: 160px; width: 100%;">
@@ -87,7 +84,6 @@
             </div>
         </div>
 
-        <!-- 🌧️ GRÁFICA 2: PREVISIÓN DE PLUVIOMETRÍA -->
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px; color: #58a6ff;">Previsión Pluviometría (mm o l/m²)</strong>
             <div style="position: relative; height: 160px; width: 100%;">
@@ -168,7 +164,7 @@
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
         
         if (!aemetExitoso) {
-            console.log("AEMET fuera de servicio. Cargando desde el satélite de reserva...");
+            console.log("AEMET fuera de línea. Recorriendo datos del satélite de reserva...");
             await procesarClimaReserva(nombrePueblo, lat, lon);
         }
     }
@@ -197,7 +193,6 @@
             const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
             const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
             
-            // Extraer probabilidad de lluvia para la gráfica
             const lluviaNodos = hoy.getElementsByTagName("prob_precipitacion");
             let datosPrecipitacion = Array(24).fill(0);
             
@@ -209,7 +204,12 @@
             
             actualizarGraficaLluvia(datosPrecipitacion);
 
-            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+            let icono = "🌤️";
+            if(descripcionCielo.toLowerCase().match(/(lluvia|chubasco|llovizna|tormenta)/)) icono = "🌧️";
+            else if(descripcionCielo.toLowerCase().match(/(cubierto|nuboso|nubes)/)) icono = "☁️";
+            else if(descripcionCielo.toLowerCase().match(/(despejado|sol)/)) icono = "☀️";
+
+            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
             return true;
         } catch (e) {
             return false;
@@ -226,18 +226,30 @@
             const dataHoy = json.properties.timeseries[0].data;
             const condicion = dataHoy.next_1_hours.summary.symbol_code;
             
-            // Mapeo tradicional de condiciones para mantener el formato global idéntico al de AEMET
+            // Traducir las condiciones globales al mismo vocabulario que usa AEMET
             let descripcionCielo = "Despejado";
-            if(condicion.includes("rain")) descripcionCielo = "Lluvia";
-            else if(condicion.includes("cloud")) descripcionCielo = "Nuboso";
-            else if(condicion.includes("clearsky")) descripcionCielo = "Despejado";
+            let icono = "☀️";
             
-            // Obtenemos una estimación de máximas/mínimas desde los datos horarios de reserva
+            if(condicion.includes("rain") || condicion.includes("sleet")) {
+                descripcionCielo = "Lluvia";
+                icono = "🌧️";
+            } else if(condicion.includes("cloud") || condicion.includes("fog")) {
+                descripcionCielo = "Nuboso";
+                icono = "☁️";
+            } else if(condicion.includes("clear") || condicion.includes("fair")) {
+                descripcionCielo = "Despejado";
+                icono = "☀️";
+            } else {
+                descripcionCielo = "Intervalos nubosos";
+                icono = "🌤️";
+            }
+            
+            // Calcular de forma exacta la máxima y mínima real recorriendo las próximas 24h
             let temps = json.properties.timeseries.slice(0, 24).map(t => t.data.instant.details.air_temperature);
             let maxima = Math.round(Math.max(...temps));
             let minima = Math.round(Math.min(...temps));
 
-            // Cargar datos en la gráfica de lluvia
+            // Cargar datos reales en la gráfica de lluvia
             let datosPrecipitacion = [];
             for(let i=0; i<24; i++) {
                 let bloqueHora = json.properties.timeseries[i];
@@ -246,8 +258,8 @@
             }
             actualizarGraficaLluvia(datosPrecipitacion);
 
-            // Muestra exactamente el mismo formato de texto global que antes
-            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+            // Se fuerza el formato tradicional solicitado eliminando cualquier texto de "conectado"
+            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
         } catch(e) {
             document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
         }
