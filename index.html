@@ -18,7 +18,7 @@
         details{width:100%; background:#161b22; border:1px solid #30363d; border-radius:12px; text-align:left;}
         summary{padding:12px; cursor:pointer; font-weight:bold;}
         .chart-card{width:100%; height:220px; margin-bottom: 5px;}
-        input[type=time], input[type=password], input[type=text], select{background:#0d1117; color:white; border:1px solid #30363d; padding:8px; border-radius:5px; text-align:center;}
+        input[type=time], input[type=password], input[type=text], select{background:#0d1117; color:white; border:1px solid #30363d; padding:6px; border-radius:5px; text-align:center;}
         
         #login-screen {
             max-width: 320px; margin: 100px auto; padding: 25px; 
@@ -27,9 +27,47 @@
         #app-content { display: none; } 
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
         
-        .prog-item { border-bottom:1px solid #333; padding:12px 0; }
-        .prog-item:last-child { border-bottom: none; }
+        /* --- NUEVO ESTILO PROFESIONAL DE PROGRAMAS --- */
+        .prog-card {
+            background: #1f242c; border: 1px solid #30363d; border-radius: 10px;
+            padding: 14px; margin-bottom: 10px; position: relative;
+            display: flex; flex-direction: column; gap: 10px; text-align: left;
+            border-left: 4px solid #30363d; transition: border-color 0.3s;
+        }
+        .prog-card.enabled { border-left-color: #2ea043; } /* Verde si está activo */
         
+        .prog-header { display: flex; justify-content: space-between; align-items: center; }
+        .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        
+        .prog-time-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8b949e; }
+        
+        .day-circle {
+            width: 28px; height: 28px; border-radius: 50%; border: none;
+            background: #21262d; color: #8b949e; font-size: 11px; font-weight: bold;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .day-circle.active { background: #1f6feb; color: #ffffff; box-shadow: 0 0 8px rgba(31, 111, 235, 0.4); }
+        
+        .ev-tag {
+            padding: 6px 10px; border-radius: 6px; background: #21262d; border: 1px solid #30363d;
+            color: #8b949e; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;
+        }
+        .ev-tag.active { background: rgba(56, 139, 253, 0.15); border-color: #58a6ff; color: #58a6ff; }
+        
+        .btn-delete {
+            background: none; border: none; color: #f85149; cursor: pointer;
+            font-size: 16px; padding: 4px; border-radius: 4px; transition: background 0.2s;
+        }
+        .btn-delete:hover { background: rgba(248, 81, 73, 0.15); }
+        
+        /* Switch minimalista */
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #21262d; transition: .3s; border-radius: 20px; border: 1px solid #30363d; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: #8b949e; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #2ea043; border-color: #2ea043; }
+        input:checked + .slider:before { transform: translateX(14px); background-color: white; }
+
         .weather-box {
             background: #161b22; border: 1px solid #30363d; padding: 10px; 
             border-radius: 8px; margin: 10px auto; max-width: 860px;
@@ -70,9 +108,9 @@
 
     <div class='container'>
         <details open>
-            <summary>📅 PROGRAMAS</summary>
-            <div id='listaProg' style='padding:0 10px;'></div>
-            <button class='btn active' style='margin:12px; width:calc(100% - 24px);' onclick='addP()'>+ AÑADIR PROGRAMA</button>
+            <summary>📅 PROGRAMACIÓN DE RIEGO</summary>
+            <div id='listaProg' style='padding: 10px;'></div>
+            <button class='btn active' style='margin: 4px 10px 14px 10px; width:calc(100% - 20px); height: 38px; font-size: 13px;' onclick='addP()'>+ AÑADIR PROGRAMA NUEVO</button>
         </details>
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
@@ -160,11 +198,8 @@
     // --- GESTOR DE CLIMA HÍBRIDO ---
     async function obtenerClimaHibrido(codigoAemet, nombrePueblo, lat, lon) {
         document.getElementById("aemet-prediccion").innerHTML = "🌤️ Consultando tiempo...";
-        
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
-        
         if (!aemetExitoso) {
-            console.log("AEMET fuera de línea. Recorriendo datos del satélite de reserva...");
             await procesarClimaReserva(nombrePueblo, lat, lon);
         }
     }
@@ -226,39 +261,24 @@
             const dataHoy = json.properties.timeseries[0].data;
             const condicion = dataHoy.next_1_hours.summary.symbol_code;
             
-            // Traducir las condiciones globales al mismo vocabulario que usa AEMET
             let descripcionCielo = "Despejado";
             let icono = "☀️";
             
-            if(condicion.includes("rain") || condicion.includes("sleet")) {
-                descripcionCielo = "Lluvia";
-                icono = "🌧️";
-            } else if(condicion.includes("cloud") || condicion.includes("fog")) {
-                descripcionCielo = "Nuboso";
-                icono = "☁️";
-            } else if(condicion.includes("clear") || condicion.includes("fair")) {
-                descripcionCielo = "Despejado";
-                icono = "☀️";
-            } else {
-                descripcionCielo = "Intervalos nubosos";
-                icono = "🌤️";
-            }
+            if(condicion.includes("rain") || condicion.includes("sleet")) { descripcionCielo = "Lluvia"; icono = "🌧️"; }
+            else if(condicion.includes("cloud") || condicion.includes("fog")) { descripcionCielo = "Nuboso"; icono = "☁️"; }
+            else { descripcionCielo = "Despejado"; icono = "☀️"; }
             
-            // Calcular de forma exacta la máxima y mínima real recorriendo las próximas 24h
             let temps = json.properties.timeseries.slice(0, 24).map(t => t.data.instant.details.air_temperature);
             let maxima = Math.round(Math.max(...temps));
             let minima = Math.round(Math.min(...temps));
 
-            // Cargar datos reales en la gráfica de lluvia
             let datosPrecipitacion = [];
             for(let i=0; i<24; i++) {
                 let bloqueHora = json.properties.timeseries[i];
-                let lluviaEnEsaHora = bloqueHora?.data?.next_1_hours?.details?.precipitation_amount || 0;
-                datosPrecipitacion.push(lluviaEnEsaHora);
+                datosPrecipitacion.push(bloqueHora?.data?.next_1_hours?.details?.precipitation_amount || 0);
             }
             actualizarGraficaLluvia(datosPrecipitacion);
 
-            // Se fuerza el formato tradicional solicitado eliminando cualquier texto de "conectado"
             document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
         } catch(e) {
             document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
@@ -290,7 +310,7 @@
         });
     }
 
-    // --- CONFIGURACIÓN DE LAS DOS GRÁFICAS (CHART.JS) ---
+    // --- CONFIGURACIÓN DE LAS DOS GRÁFICAS ---
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
@@ -348,8 +368,12 @@
     }
     setInterval(tick, 5000);
 
-    // --- PROGRAMAS CRUD ---
-    function addP(){ if(progs.length >= 5) return alert("Máximo 5 programas."); progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); renderP(); }
+    // --- GESTIÓN DE PROGRAMAS (CON RENDERIZADO PROFESIONAL) ---
+    function addP(){ 
+        if(progs.length >= 5) return alert("Máximo 5 programas."); 
+        progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
+        renderP(); 
+    }
     function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(); }
     function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(); }
     function eliminarP(index) { progs.splice(index, 1); renderP(); }
@@ -358,13 +382,42 @@
     function renderP(){ 
         localStorage.setItem('riegodb', JSON.stringify(progs)); 
         let h = ''; 
+        
         progs.forEach((p, i) => { 
-            h += `<div class='prog-item'><b>P${i+1}</b> <input type='checkbox' ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'> | <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> a <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'><br><div class='btn-group'>`; 
-            ['D','L','M','X','J','V','S'].forEach((d, idx) => { h += `<button class='btn ${p.days.includes(idx) ? 'active' : ''}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; }); 
-            h += `</div><div class='btn-group'>`; 
-            p.evs.forEach((v, vidx) => { h += `<button class='btn ${v ? 'active' : ''}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</button>`; }); 
-            h += `<button class='btn' style='background:#f85149; flex:0.5' onclick='eliminarP(${i})'>🗑</button></div></div>`; 
+            h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
+                <div class='prog-header'>
+                    <div class='prog-title'>⚙️ PROGRAMA O${i+1}</div>
+                    <div style='display:flex; align-items:center; gap:12px;'>
+                        <label class="switch">
+                            <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'>
+                            <span class="slider"></span>
+                        </label>
+                        <button class='btn-delete' onclick='eliminarP(${i})' title='Eliminar'>🗑️</button>
+                    </div>
+                </div>
+                
+                <div class='prog-time-row'>
+                    ⏱️ Intervalo: 
+                    <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> 
+                    <span>→</span> 
+                    <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
+                </div>
+                
+                <div style='display:flex; gap:5px; flex-wrap:wrap; margin-top:2px;'>`; 
+            
+            ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
+                h += `<button class='day-circle ${p.days.includes(idx) ? 'active' : ''}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; 
+            }); 
+            
+            h += `</div><div style='display:flex; gap:6px; margin-top:4px;'>`; 
+            
+            p.evs.forEach((v, vidx) => { 
+                h += `<div class='ev-tag ${v ? 'active' : ''}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</div>`; 
+            }); 
+            
+            h += `</div></div>`; 
         }); 
+        
         document.getElementById('listaProg').innerHTML = h; 
     }
     renderP();
