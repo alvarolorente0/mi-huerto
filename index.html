@@ -87,7 +87,7 @@
             </div>
         </div>
 
-        <!-- 🌧️ GRÁFICA 2: PREVISIÓN DE PLUVIOMETRÍA (NUEVA) -->
+        <!-- 🌧️ GRÁFICA 2: PREVISIÓN DE PLUVIOMETRÍA -->
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px; color: #58a6ff;">Previsión Pluviometría (mm o l/m²)</strong>
             <div style="position: relative; height: 160px; width: 100%;">
@@ -168,7 +168,7 @@
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
         
         if (!aemetExitoso) {
-            console.log("AEMET fuera de servicio o sin datos de lluvia detallados. Usando MetNo...");
+            console.log("AEMET fuera de servicio. Cargando desde el satélite de reserva...");
             await procesarClimaReserva(nombrePueblo, lat, lon);
         }
     }
@@ -188,7 +188,6 @@
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
             if(!hoy) return false;
             
-            // Procesamiento de texto del cielo
             const estadosCielo = hoy.getElementsByTagName("estado_cielo");
             let descripcionCielo = "Despejado";
             for(let i = estadosCielo.length - 1; i >= 0; i--) {
@@ -198,14 +197,12 @@
             const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
             const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
             
-            // Extraer probabilidad de lluvia de AEMET para pintar la gráfica (mañana, mediodía, tarde, noche)
+            // Extraer probabilidad de lluvia para la gráfica
             const lluviaNodos = hoy.getElementsByTagName("prob_precipitacion");
             let datosPrecipitacion = Array(24).fill(0);
             
             if(lluviaNodos.length > 0) {
-                // Rellenamos estimaciones visuales basadas en las probabilidades de periodos de AEMET
                 let probHoy = parseInt(lluviaNodos[0].textContent) || 0;
-                // Convertimos probabilidad aproximada a una estimación de intensidad en mm para la gráfica
                 let estimacionMm = probHoy > 70 ? 4 : probHoy > 40 ? 1.5 : probHoy > 10 ? 0.5 : 0;
                 for(let h=12; h<20; h++) datosPrecipitacion[h] = estimacionMm; 
             }
@@ -227,19 +224,30 @@
             const json = await respuesta.json();
             
             const dataHoy = json.properties.timeseries[0].data;
-            const tempActual = dataHoy.instant.details.air_temperature;
+            const condicion = dataHoy.next_1_hours.summary.symbol_code;
             
-            // MetNo nos da la lluvia exacta de las próximas 24 horas paso a paso
+            // Mapeo tradicional de condiciones para mantener el formato global idéntico al de AEMET
+            let descripcionCielo = "Despejado";
+            if(condicion.includes("rain")) descripcionCielo = "Lluvia";
+            else if(condicion.includes("cloud")) descripcionCielo = "Nuboso";
+            else if(condicion.includes("clearsky")) descripcionCielo = "Despejado";
+            
+            // Obtenemos una estimación de máximas/mínimas desde los datos horarios de reserva
+            let temps = json.properties.timeseries.slice(0, 24).map(t => t.data.instant.details.air_temperature);
+            let maxima = Math.round(Math.max(...temps));
+            let minima = Math.round(Math.min(...temps));
+
+            // Cargar datos en la gráfica de lluvia
             let datosPrecipitacion = [];
             for(let i=0; i<24; i++) {
                 let bloqueHora = json.properties.timeseries[i];
                 let lluviaEnEsaHora = bloqueHora?.data?.next_1_hours?.details?.precipitation_amount || 0;
                 datosPrecipitacion.push(lluviaEnEsaHora);
             }
-            
             actualizarGraficaLluvia(datosPrecipitacion);
 
-            document.getElementById("aemet-prediccion").innerHTML = `🌧️ ${nombrePueblo}: Conectado (${tempActual}°C)`;
+            // Muestra exactamente el mismo formato de texto global que antes
+            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
         } catch(e) {
             document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
         }
