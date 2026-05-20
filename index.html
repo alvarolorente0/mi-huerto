@@ -27,14 +27,14 @@
         #app-content { display: none; } 
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
         
-        /* --- NUEVO ESTILO PROFESIONAL DE PROGRAMAS --- */
+        /* --- ESTILO PROFESIONAL DE PROGRAMAS --- */
         .prog-card {
             background: #1f242c; border: 1px solid #30363d; border-radius: 10px;
             padding: 14px; margin-bottom: 10px; position: relative;
             display: flex; flex-direction: column; gap: 10px; text-align: left;
             border-left: 4px solid #30363d; transition: border-color 0.3s;
         }
-        .prog-card.enabled { border-left-color: #2ea043; } /* Verde si está activo */
+        .prog-card.enabled { border-left-color: #2ea043; }
         
         .prog-header { display: flex; justify-content: space-between; align-items: center; }
         .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; display: flex; align-items: center; gap: 8px; }
@@ -76,24 +76,13 @@
         .aemet-info { color: #58a6ff; font-weight: bold; font-size: 14px;}
         .cp-selector { display: flex; gap: 5px; align-items: center;}
 
-        /* --- NUEVO ESTILO DE SCROLL PARA LA LISTA DE PROGRAMAS --- */
         #listaProg {
-            max-height: 260px;
-            overflow-y: auto;
-            padding: 10px;
-            scrollbar-width: thin;
-            scrollbar-color: #30363d #161b22;
+            max-height: 260px; overflow-y: auto; padding: 10px;
+            scrollbar-width: thin; scrollbar-color: #30363d #161b22;
         }
-        #listaProg::-webkit-scrollbar {
-            width: 6px;
-        }
-        #listaProg::-webkit-scrollbar-track {
-            background: #161b22;
-        }
-        #listaProg::-webkit-scrollbar-thumb {
-            background-color: #30363d;
-            border-radius: 3px;
-        }
+        #listaProg::-webkit-scrollbar { width: 6px; }
+        #listaProg::-webkit-scrollbar-track { background: #161b22; }
+        #listaProg::-webkit-scrollbar-thumb { background-color: #30363d; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -134,7 +123,7 @@
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         
-        <!-- Tarjeta para ver el consumo de datos de red del Arduino -->
+        <!-- Tarjeta de monitoreo de consumo de red -->
         <div id='datos-consumo' style='width:100%; display:flex; gap:12px; margin-bottom:5px;'></div>
         
         <div class='card chart-card'>
@@ -174,7 +163,6 @@
         }
     }
 
-    // --- BUSCADOR GEOGRÁFICO ---
     function buscarPorCodigoPostal() {
         const cp = document.getElementById('cpInput').value.trim();
         if(cp.length !== 5 || isNaN(cp)) {
@@ -217,7 +205,6 @@
         obtenerClimaHibrido(op.value, op.text, op.dataset.lat, op.dataset.lon);
     }
 
-    // --- GESTOR DE CLIMA HÍBRIDO ---
     async function obtenerClimaHibrido(codigoAemet, nombrePueblo, lat, lon) {
         document.getElementById("aemet-prediccion").innerHTML = "🌤️ Consultando tiempo...";
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
@@ -312,7 +299,6 @@
         rainChart.update('none');
     }
 
-    // --- CONEXIÓN MQTT SHIFTR.IO ---
     let mqttClient;
     function conectarMQTT() {
         mqttClient = mqtt.connect('wss://public:public@public.cloud.shiftr.io', {
@@ -332,7 +318,6 @@
         });
     }
 
-    // --- CONFIGURACIÓN DE LAS DOS GRÁFICAS ---
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
@@ -353,7 +338,6 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
     });
 
-    // --- RECEPCIÓN DE DATOS ---
     function up(data){
         let p = data.split('|');
         if(p.length < 8) return;
@@ -375,18 +359,18 @@
         }
         document.getElementById('valvulas').innerHTML = vH;
 
-        // --- GESTIÓN DE CONSUMO DE DATOS DESDE EL ARDUINO ---
+        // Lee p[9] y p[10] enviados de forma controlada por el Arduino optimizado
         let consumoActual = p[9] ? p[9] : '0.00'; 
         let consumoTotal = p[10] ? p[10] : '0.000';
 
         let cH = `
             <div class='card' style='width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;'>
                 <div>
-                    <b style='color:#58a6ff; display:block; margin-bottom:4px;'>📊 Tráfico de Datos (Red)</b>
-                    <span style='font-size:13px; color:#8b949e;'>Último paquete: <span class='on' style='font-weight:bold;'>${consumoActual} KB</span></span>
+                    <b style='color:#58a6ff; display:block; margin-bottom:4px;'>📊 Tráfico de Datos (Optimizado)</b>
+                    <span style='font-size:13px; color:#8b949e;'>Última ráfaga: <span class='on' style='font-weight:bold;'>${consumoActual} KB</span></span>
                 </div>
                 <div style='text-align:right;'>
-                    <span style='font-size:11px; color:#8b949e; display:block;'>CONSUMO TOTAL</span>
+                    <span style='font-size:11px; color:#8b949e; display:block;'>CONSUMO TOTAL ACUMULADO</span>
                     <b style='font-size:18px; color:#ffffff;'>${consumoTotal} <span style='font-size:12px; color:#58a6ff;'>MB</span></b>
                 </div>
             </div>
@@ -396,7 +380,6 @@
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
 
-    // --- AUTOMATIZACIÓN (TICK) ---
     let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     function tick(){
         if(document.getElementById('app-content').style.display !== 'block') return;
@@ -408,7 +391,6 @@
     }
     setInterval(tick, 5000);
 
-    // --- GESTIÓN DE PROGRAMAS (CON RENDERIZADO PROFESIONAL) ---
     function addP(){ 
         if(progs.length >= 5) return alert("Máximo 5 programas."); 
         progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
@@ -422,7 +404,6 @@
     function renderP(){ 
         localStorage.setItem('riegodb', JSON.stringify(progs)); 
         let h = ''; 
-        
         progs.forEach((p, i) => { 
             h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
                 <div class='prog-header'>
@@ -435,29 +416,22 @@
                         <button class='btn-delete' onclick='eliminarP(${i})' title='Eliminar'>🗑️</button>
                     </div>
                 </div>
-                
                 <div class='prog-time-row'>
                     ⏱️ Intervalo: 
                     <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> 
                     <span>→</span> 
                     <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
                 </div>
-                
                 <div style='display:flex; gap:5px; flex-wrap:wrap; margin-top:2px;'>`; 
-            
             ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
                 h += `<button class='day-circle ${p.days.includes(idx) ? 'active' : ''}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; 
             }); 
-            
             h += `</div><div style='display:flex; gap:6px; margin-top:4px;'>`; 
-            
             p.evs.forEach((v, vidx) => { 
                 h += `<div class='ev-tag ${v ? 'active' : ''}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</div>`; 
             }); 
-            
             h += `</div></div>`; 
         }); 
-        
         document.getElementById('listaProg').innerHTML = h; 
     }
     renderP();
