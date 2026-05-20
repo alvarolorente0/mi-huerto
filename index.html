@@ -134,6 +134,9 @@
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
         
+        <!-- Tarjeta para ver el consumo de datos de red del Arduino -->
+        <div id='datos-consumo' style='width:100%; display:flex; gap:12px; margin-bottom:5px;'></div>
+        
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px;">Historial Sonda 24h (°C)</strong>
             <div style="position: relative; height: 160px; width: 100%;">
@@ -371,6 +374,24 @@
             vH += '</div></div>';
         }
         document.getElementById('valvulas').innerHTML = vH;
+
+        // --- GESTIÓN DE CONSUMO DE DATOS DESDE EL ARDUINO ---
+        let consumoActual = p[9] ? p[9] : '0.00'; 
+        let consumoTotal = p[10] ? p[10] : '0.000';
+
+        let cH = `
+            <div class='card' style='width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;'>
+                <div>
+                    <b style='color:#58a6ff; display:block; margin-bottom:4px;'>📊 Tráfico de Datos (Red)</b>
+                    <span style='font-size:13px; color:#8b949e;'>Último paquete: <span class='on' style='font-weight:bold;'>${consumoActual} KB</span></span>
+                </div>
+                <div style='text-align:right;'>
+                    <span style='font-size:11px; color:#8b949e; display:block;'>CONSUMO TOTAL</span>
+                    <b style='font-size:18px; color:#ffffff;'>${consumoTotal} <span style='font-size:12px; color:#58a6ff;'>MB</span></b>
+                </div>
+            </div>
+        `;
+        document.getElementById('datos-consumo').innerHTML = cH;
     }
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
@@ -405,7 +426,7 @@
         progs.forEach((p, i) => { 
             h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
                 <div class='prog-header'>
-                    <div class='prog-title'>⚙️ PROGRAMA O${i+1}</div>
+                    <div class='prog-title'>⚙️ PROGRAMA ${i+1}</div>
                     <div style='display:flex; align-items:center; gap:12px;'>
                         <label class="switch">
                             <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'>
