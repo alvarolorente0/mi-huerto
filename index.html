@@ -30,7 +30,7 @@
         .chart-scroll-container::-webkit-scrollbar-track { background: #161b22; }
         .chart-scroll-container::-webkit-scrollbar-thumb { background-color: #30363d; border-radius: 3px; }
         
-        /* Ancho mínimo para que la gráfica no se comprima y use el scroll */
+        /* Ancho mínimo para que la gráfica respire en pantallas móviles */
         .chart-wrapper {
             position: relative;
             height: 160px;
@@ -80,7 +80,7 @@
         }
         .btn-delete:hover { background: rgba(248, 81, 73, 0.15); }
         
-        /* Switch minimalista */
+        /* Switch */
         .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #21262d; transition: .3s; border-radius: 20px; border: 1px solid #30363d; }
@@ -318,7 +318,6 @@
     }
 
     function actualizarGraficaLluvia(listaValores) {
-        // Genera etiquetas de previsión dinámicas relativas a la hora actual del sistema
         let horaActual = new Date().getHours();
         let etiquetasLluvia = [];
         for (let i = 0; i < 24; i++) {
@@ -349,7 +348,6 @@
         });
     }
 
-    // Inicializamos las gráficas vacías (las etiquetas se reescribirán dinámicamente)
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
@@ -376,20 +374,31 @@
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
         
-        // --- CÁLCULO DINÁMICO DE LAS ETIQUETAS DEL HISTORIAL DE 24 HORAS ---
+        // --- ROTACIÓN CRONOLÓGICA DE DATOS Y HORAS ---
         let horaSuck = p[7].split(':');
-        let horaFinal = parseInt(horaSuck[0]); // Hora actual devuelta por el Arduino/MQTT
-        if(isNaN(horaFinal)) horaFinal = new Date().getHours();
+        let horaActual = parseInt(horaSuck[0]); 
+        if(isNaN(horaActual)) horaActual = new Date().getHours();
         
+        // Generamos el orden del eje X de forma que termine exactamente en la hora actual
         let lasHorasLabels = [];
         for(let i = 23; i >= 0; i--) {
-            let h = (horaFinal - i + 24) % 24;
+            let h = (horaActual - i + 24) % 24;
             lasHorasLabels.push(h + 'h');
         }
         
         if(p[8]){ 
-            myChart.data.labels = lasHorasLabels; // Seteamos las horas calculadas al eje X
-            myChart.data.datasets[0].data = p[8].split(',').map(Number); 
+            let rawData = p[8].split(',').map(Number);
+            
+            // Si el hardware envía un buffer plano estático, rotamos los datos en JS 
+            // para acoplarlos cronológicamente al nuevo eje X dinámico.
+            let rotatedData = [];
+            for(let i = 23; i >= 0; i--) {
+                let targetIndex = (horaActual - i + 24) % 24;
+                rotatedData.push(rawData[targetIndex] || 0);
+            }
+            
+            myChart.data.labels = lasHorasLabels; 
+            myChart.data.datasets[0].data = rotatedData; 
             myChart.update('none'); 
         }
         
