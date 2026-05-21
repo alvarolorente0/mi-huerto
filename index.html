@@ -19,7 +19,6 @@
         summary{padding:12px; cursor:pointer; font-weight:bold;}
         .chart-card{width:100%; height:220px; margin-bottom: 5px;}
         
-        /* Contenedor con scroll para la gráfica */
         .chart-scroll-container {
             width: 100%;
             overflow-x: auto;
@@ -30,7 +29,6 @@
         .chart-scroll-container::-webkit-scrollbar-track { background: #161b22; }
         .chart-scroll-container::-webkit-scrollbar-thumb { background-color: #30363d; border-radius: 3px; }
         
-        /* Ancho mínimo para que la gráfica respire en pantallas móviles */
         .chart-wrapper {
             position: relative;
             height: 160px;
@@ -47,7 +45,6 @@
         #app-content { display: none; } 
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
         
-        /* --- ESTILO PROFESIONAL DE PROGRAMAS --- */
         .prog-card {
             background: #1f242c; border: 1px solid #30363d; border-radius: 10px;
             padding: 14px; margin-bottom: 10px; position: relative;
@@ -55,10 +52,8 @@
             border-left: 4px solid #30363d; transition: border-color 0.3s;
         }
         .prog-card.enabled { border-left-color: #2ea043; }
-        
         .prog-header { display: flex; justify-content: space-between; align-items: center; }
         .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-        
         .prog-time-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8b949e; }
         
         .day-circle {
@@ -80,7 +75,6 @@
         }
         .btn-delete:hover { background: rgba(248, 81, 73, 0.15); }
         
-        /* Switch */
         .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #21262d; transition: .3s; border-radius: 20px; border: 1px solid #30363d; }
@@ -142,7 +136,6 @@
         </details>
         
         <div id='valvulas' style='width:100%; display:flex; flex-wrap:wrap; gap:12px;'></div>
-        
         <div id='datos-consumo' style='width:100%; display:flex; gap:12px; margin-bottom:5px;'></div>
         
         <div class='card chart-card'>
@@ -167,6 +160,7 @@
 
 <script>
     const CLAVE_CORRECTA = "1234";
+    let progs = []; // Ahora inicia vacío y se sincroniza por MQTT
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
@@ -179,7 +173,9 @@
             document.getElementById('cpInput').value = cpGuardado;
             buscarPorCodigoPostal();
             
-            renderP(); 
+            // Carga inicial de respaldo local por si acaso
+            progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
+            renderP(false); 
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
@@ -188,142 +184,56 @@
 
     function buscarPorCodigoPostal() {
         const cp = document.getElementById('cpInput').value.trim();
-        if(cp.length !== 5 || isNaN(cp)) {
-            alert("Por favor, introduce un Código Postal válido.");
-            return;
-        }
-        
+        if(cp.length !== 5 || isNaN(cp)) return;
         localStorage.setItem('riegocp', cp);
         const select = document.getElementById('municipioSelect');
         select.innerHTML = "";
-        
         let nombreLocalidad = "Zona " + cp;
         let codigoAemet = cp.substring(0, 2) + "001"; 
         let lat = "41.6563", lon = "-0.8773"; 
-        
-        if (cp === "50461") {
-            nombreLocalidad = "Alfamén";
-            codigoAemet = "50018";
-            lat = "41.4382"; lon = "-1.2418";
-        } else if (cp === "50000" || cp === "50001" || cp === "50002" || cp === "50003" || cp === "50004" || cp === "50005") {
-            nombreLocalidad = "Zaragoza";
-            codigoAemet = "50297";
-            lat = "41.6563"; lon = "-0.8773";
-        }
-        
+        if (cp === "50461") { nombreLocalidad = "Alfamén"; codigoAemet = "50018"; lat = "41.4382"; lon = "-1.2418"; }
         let op = document.createElement('option');
-        op.value = codigoAemet;
-        op.dataset.lat = lat;
-        op.dataset.lon = lon;
-        op.text = nombreLocalidad;
-        select.appendChild(op);
-        select.style.display = "inline-block";
-        
+        op.value = codigoAemet; op.dataset.lat = lat; op.dataset.lon = lon; op.text = nombreLocalidad;
+        select.appendChild(op); select.style.display = "inline-block";
         obtenerClimaHibrido(codigoAemet, nombreLocalidad, lat, lon);
     }
 
-    function cambiarMunicipioManual() {
-        const select = document.getElementById('municipioSelect');
-        const op = select.options[select.selectedIndex];
-        obtenerClimaHibrido(op.value, op.text, op.dataset.lat, op.dataset.lon);
-    }
-
     async function obtenerClimaHibrido(codigoAemet, nombrePueblo, lat, lon) {
-        document.getElementById("aemet-prediccion").innerHTML = "🌤️ Consultando tiempo...";
         let aemetExitoso = await procesarAemet(codigoAemet, nombrePueblo);
-        if (!aemetExitoso) {
-            await procesarClimaReserva(nombrePueblo, lat, lon);
-        }
+        if (!aemetExitoso) await procesarClimaReserva(nombrePueblo, lat, lon);
     }
 
     async function procesarAemet(codigoMuniAemet, nombrePueblo) {
         try {
             const url = `https://www.aemet.es/xml/municipios/localidad_${codigoMuniAemet}.xml`;
-            const controlador = new AbortController();
-            setTimeout(() => controlador.abort(), 2500);
-
-            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`, { signal: controlador.signal });
+            const respuesta = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}&_=${Date.now()}`);
             if(!respuesta.ok) return false;
-            
             const datos = await respuesta.json();
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(datos.contents, "text/xml");
             const hoy = xmlDoc.getElementsByTagName("dia")[0];
             if(!hoy) return false;
-            
-            const estadosCielo = hoy.getElementsByTagName("estado_cielo");
-            let descripcionCielo = "Despejado";
-            for(let i = estadosCielo.length - 1; i >= 0; i--) {
-                let desc = estadosCielo[i].getAttribute("descripcion");
-                if(desc) { descripcionCielo = desc; break; }
-            }
             const maxima = hoy.getElementsByTagName("maxima")[0].textContent || "--";
             const minima = hoy.getElementsByTagName("minima")[0].textContent || "--";
-            
-            const lluviaNodos = hoy.getElementsByTagName("prob_precipitacion");
-            let datosPrecipitacion = Array(24).fill(0);
-            
-            if(lluviaNodos.length > 0) {
-                let probHoy = parseInt(lluviaNodos[0].textContent) || 0;
-                let estimacionMm = probHoy > 70 ? 4 : probHoy > 40 ? 1.5 : probHoy > 10 ? 0.5 : 0;
-                for(let h=12; h<20; h++) datosPrecipitacion[h] = estimacionMm; 
-            }
-            
-            actualizarGraficaLluvia(datosPrecipitacion);
-
-            let icono = "🌤️";
-            if(descripcionCielo.toLowerCase().match(/(lluvia|chubasco|llovizna|tormenta)/)) icono = "🌧️";
-            else if(descripcionCielo.toLowerCase().match(/(cubierto|nuboso|nubes)/)) icono = "☁️";
-            else if(descripcionCielo.toLowerCase().match(/(despejado|sol)/)) icono = "☀️";
-
-            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
+            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo} (${minima}°C / ${maxima}°C)`;
             return true;
-        } catch (e) {
-            return false;
-        }
+        } catch (e) { return false; }
     }
 
     async function procesarClimaReserva(nombrePueblo, lat, lon) {
         try {
             const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`;
             const respuesta = await fetch(url);
-            if(!respuesta.ok) throw new Error();
             const json = await respuesta.json();
-            
-            const dataHoy = json.properties.timeseries[0].data;
-            const condicion = dataHoy.next_1_hours.summary.symbol_code;
-            
-            let descripcionCielo = "Despejado";
-            let icono = "☀️";
-            
-            if(condicion.includes("rain") || condicion.includes("sleet")) { descripcionCielo = "Lluvia"; icono = "🌧️"; }
-            else if(condicion.includes("cloud") || condicion.includes("fog")) { descripcionCielo = "Nuboso"; icono = "☁️"; }
-            else { descripcionCielo = "Despejado"; icono = "☀️"; }
-            
             let temps = json.properties.timeseries.slice(0, 24).map(t => t.data.instant.details.air_temperature);
-            let maxima = Math.round(Math.max(...temps));
-            let minima = Math.round(Math.min(...temps));
-
-            let datosPrecipitacion = [];
-            for(let i=0; i<24; i++) {
-                let bloqueHora = json.properties.timeseries[i];
-                datosPrecipitacion.push(bloqueHora?.data?.next_1_hours?.details?.precipitation_amount || 0);
-            }
-            actualizarGraficaLluvia(datosPrecipitacion);
-
-            document.getElementById("aemet-prediccion").innerHTML = `${icono} ${nombrePueblo}: ${descripcionCielo} (${minima}°C / ${maxima}°C)`;
-        } catch(e) {
-            document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima fuera de línea`;
-        }
+            document.getElementById("aemet-prediccion").innerHTML = `🌤️ ${nombrePueblo} (${Math.round(Math.min(...temps))}°C / ${Math.round(Math.max(...temps))}°C)`;
+        } catch(e) { document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima offline`; }
     }
 
     function actualizarGraficaLluvia(listaValores) {
         let horaActual = new Date().getHours();
         let etiquetasLluvia = [];
-        for (let i = 0; i < 24; i++) {
-            let h = (horaActual + i) % 24;
-            etiquetasLluvia.push(h + 'h');
-        }
+        for (let i = 0; i < 24; i++) { etiquetasLluvia.push(((horaActual + i) % 24) + 'h'); }
         rainChart.data.labels = etiquetasLluvia;
         rainChart.data.datasets[0].data = listaValores;
         rainChart.update('none');
@@ -338,34 +248,32 @@
             document.getElementById('status').innerHTML = "🟢 CONECTADO A SHIFTR.IO";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
+            mqttClient.subscribe('CVH/riego/progs'); // Canal exclusivo para sincronizar programas
         });
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
-        });
-        mqttClient.on('error', () => {
-            document.getElementById('status').innerHTML = "🔴 ERROR DE CONEXIÓN";
-            document.getElementById('status').style.color = "#f85149";
+            if(topic === 'CVH/riego/progs') {
+                try {
+                    // Escuchamos los cambios que hacen otros dispositivos
+                    progs = JSON.parse(message.toString());
+                    renderP(false); // Renderizamos sin volver a publicar para evitar bucles infinitos
+                } catch(e) { console.log("Error sincronizando programas"); }
+            }
         });
     }
 
     const ctx = document.getElementById('myChart').getContext('2d');
     const myChart = new Chart(ctx, { 
         type: 'line', 
-        data: { 
-            labels: Array(24).fill(''), 
-            datasets: [{ data: Array(24).fill(0), borderColor: '#ffa040', tension: 0.4, fill: true, backgroundColor: 'rgba(255, 160, 64, 0.08)', pointRadius:2 }] 
-        }, 
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
+        data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#ffa040', tension: 0.4, fill: true, backgroundColor: 'rgba(255, 160, 64, 0.08)', pointRadius:2 }] }, 
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } 
     });
 
     const ctxRain = document.getElementById('rainChart').getContext('2d');
     const rainChart = new Chart(ctxRain, { 
         type: 'line', 
-        data: { 
-            labels: Array(24).fill(''), 
-            datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.2)', pointRadius:2 }] 
-        }, 
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'}, grid: {color:'#30363d'} }, x: { ticks:{font:{size:9}, color:'#8b949e'}, grid: {display:false} } }, plugins: { legend: {display:false} } } 
+        data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.2)', pointRadius:2 }] }, 
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } 
     });
 
     function up(data){
@@ -374,29 +282,16 @@
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
         
-        // --- ROTACIÓN CRONOLÓGICA DE DATOS Y HORAS ---
-        let horaSuck = p[7].split(':');
-        let horaActual = parseInt(horaSuck[0]); 
+        let horaActual = parseInt(p[7].split(':')[0]); 
         if(isNaN(horaActual)) horaActual = new Date().getHours();
         
-        // Generamos el orden del eje X de forma que termine exactamente en la hora actual
         let lasHorasLabels = [];
-        for(let i = 23; i >= 0; i--) {
-            let h = (horaActual - i + 24) % 24;
-            lasHorasLabels.push(h + 'h');
-        }
+        for(let i = 23; i >= 0; i--) { lasHorasLabels.push(((horaActual - i + 24) % 24) + 'h'); }
         
         if(p[8]){ 
             let rawData = p[8].split(',').map(Number);
-            
-            // Si el hardware envía un buffer plano estático, rotamos los datos en JS 
-            // para acoplarlos cronológicamente al nuevo eje X dinámico.
             let rotatedData = [];
-            for(let i = 23; i >= 0; i--) {
-                let targetIndex = (horaActual - i + 24) % 24;
-                rotatedData.push(rawData[targetIndex] || 0);
-            }
-            
+            for(let i = 23; i >= 0; i--) { rotatedData.push(rawData[(horaActual - i + 24) % 24] || 0); }
             myChart.data.labels = lasHorasLabels; 
             myChart.data.datasets[0].data = rotatedData; 
             myChart.update('none'); 
@@ -409,34 +304,16 @@
             vH += `<div class='card'><b>🚰 EV ${i}</b> <span class='${estadoValvula}' style='float:right; font-size:12px; font-weight:bold;'>${textoValvula}</span><div class='btn-group'>`;
             [0,1,2].forEach(m => {
                 let modoActivo = p[i+3] == m ? 'active' : '';
-                let textoModo = m == 0 ? 'OFF' : m == 1 ? 'ON' : 'AUTO';
-                vH += `<button class='btn ${modoActivo}' onclick='enviarComando("SET_M:${i}:${m}")'>${textoModo}</button>`;
+                vH += `<button class='btn ${modoActivo}' onclick='enviarComando("SET_M:${i}:${m}")'>${m==0?'OFF':m==1?'ON':'AUTO'}</button>`;
             });
             vH += '</div></div>';
         }
         document.getElementById('valvulas').innerHTML = vH;
-
-        let consumoActual = p[9] ? p[9] : '0.00'; 
-        let consumoTotal = p[10] ? p[10] : '0.000';
-
-        let cH = `
-            <div class='card' style='width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;'>
-                <div>
-                    <b style='color:#58a6ff; display:block; margin-bottom:4px;'>📊 Tráfico de Datos (Optimizado)</b>
-                    <span style='font-size:13px; color:#8b949e;'>Última ráfaga: <span class='on' style='font-weight:bold;'>${consumoActual} KB</span></span>
-                </div>
-                <div style='text-align:right;'>
-                    <span style='font-size:11px; color:#8b949e; display:block;'>CONSUMO TOTAL ACUMULADO</span>
-                    <b style='font-size:18px; color:#ffffff;'>${consumoTotal} <span style='font-size:12px; color:#58a6ff;'>MB</span></b>
-                </div>
-            </div>
-        `;
-        document.getElementById('datos-consumo').innerHTML = cH;
+        document.getElementById('datos-consumo').innerHTML = `<div class='card'>📊 Tráfico: ${p[9]||'0.00'} KB | Total: ${p[10]||'0.000'} MB</div>`;
     }
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
 
-    let progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
     function tick(){
         if(document.getElementById('app-content').style.display !== 'block') return;
         let hStr = document.getElementById('hora').innerHTML;
@@ -450,39 +327,43 @@
     function addP(){ 
         if(progs.length >= 5) return alert("Máximo 5 programas."); 
         progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
-        renderP(); 
+        renderP(true); 
     }
-    function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(); }
-    function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(); }
-    function eliminarP(index) { progs.splice(index, 1); renderP(); }
-    function actualizarHoraProg(index, tipo, valor) { progs[index][tipo] = valor; localStorage.setItem('riegodb', JSON.stringify(progs)); }
+    function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(true); }
+    function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(true); }
+    function eliminarP(index) { progs.splice(index, 1); renderP(true); }
+    function actualizarHoraProg(index, tipo, valor) { progs[index][tipo] = valor; renderP(true); }
 
-    function renderP(){ 
+    // Controla si los cambios se emiten a los otros dispositivos
+    function renderP(debePublicar = true){ 
         localStorage.setItem('riegodb', JSON.stringify(progs)); 
+        
+        // Si el cambio lo ha hecho el usuario actual, lo notificamos por MQTT al resto
+        if(debePublicar && mqttClient && mqttClient.connected) {
+            mqttClient.publish('CVH/riego/progs', JSON.stringify(progs), { retain: true });
+        }
+
         let h = ''; 
         progs.forEach((p, i) => { 
             h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
                 <div class='prog-header'>
                     <div class='prog-title'>⚙️ PROGRAMA ${i+1}</div>
-                    <div style='display:flex; align-items:center; gap:12px;'>
-                        <label class="switch">
-                            <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP()'>
-                            <span class="slider"></span>
-                        </label>
-                        <button class='btn-delete' onclick='eliminarP(${i})' title='Eliminar'>🗑️</button>
-                    </div>
+                    <label class="switch">
+                        <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP(true)'>
+                        <span class="slider"></span>
+                    </label>
+                    <button class='btn-delete' onclick='eliminarP(${i})'>🗑️</button>
                 </div>
                 <div class='prog-time-row'>
-                    ⏱️ Intervalo: 
-                    <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> 
+                    ⏱️ <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> 
                     <span>→</span> 
                     <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
                 </div>
-                <div style='display:flex; gap:5px; flex-wrap:wrap; margin-top:2px;'>`; 
+                <div style='display:flex; gap:5px; flex-wrap:wrap;'>`; 
             ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
                 h += `<button class='day-circle ${p.days.includes(idx) ? 'active' : ''}' onclick='tglDay(${i}, ${idx})'>${d}</button>`; 
             }); 
-            h += `</div><div style='display:flex; gap:6px; margin-top:4px;'>`; 
+            h += `</div><div style='display:flex; gap:6px;'>`; 
             p.evs.forEach((v, vidx) => { 
                 h += `<div class='ev-tag ${v ? 'active' : ''}' onclick='tglEv(${i}, ${vidx})'>🚰 EV${vidx+1}</div>`; 
             }); 
@@ -490,7 +371,6 @@
         }); 
         document.getElementById('listaProg').innerHTML = h; 
     }
-    renderP();
 </script>
 </body>
 </html>
