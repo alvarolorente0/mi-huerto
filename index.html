@@ -43,8 +43,9 @@
             border-left: 4px solid #30363d; transition: border-color 0.3s;
         }
         .prog-card.enabled { border-left-color: #2ea043; }
-        .prog-header { display: flex; justify-content: space-between; align-items: center; }
-        .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; }
+        .prog-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .prog-title-input { font-weight: bold; color: #f0f6fc; font-size: 14px; background: transparent; border: none; border-bottom: 1px dashed #30363d; text-align: left; padding: 2px; width: 60%; }
+        .prog-title-input:focus { border-bottom-color: #58a6ff; outline: none; }
         .prog-time-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8b949e; }
         
         .day-circle {
@@ -103,8 +104,8 @@
 
     <div class='container'>
         <details open>
-            <summary>📅 PROGRAMACIÓN EN ARDUINO (Autónoma)</summary>
-            <div id='listaProg'>Cargando programas del equipo...</div>
+            <summary>📅 PROGRAMAS</summary>
+            <div id='listaProg'>Cargando programas...</div>
             <button class='btn active' style='margin: 4px 10px 14px 10px; width:calc(100% - 20px); height: 38px; font-size: 13px;' onclick='addP()'>+ AÑADIR PROGRAMA NUEVO</button>
         </details>
         
@@ -196,7 +197,7 @@
             clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
         });
         mqttClient.on('connect', () => {
-            document.getElementById('status').innerHTML = "🟢 CONECTADO | SINCRONIZADO CON ARDUINO";
+            document.getElementById('status').innerHTML = "🟢 CONECTADO";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
             mqttClient.subscribe('CVH/riego/progs'); 
@@ -207,26 +208,25 @@
         });
     }
 
-    // Traduce la cadena compacta del Arduino al JSON de la Web
     function parsingProgsDesdeArduino(payload) {
         if(!payload || payload === "VACIO") { progs = []; renderP(false); return; }
         let bloques = payload.split(';');
         progs = [];
         bloques.forEach(b => {
             if(!b) return;
-            let d = b.split('|'); // [en, on, off, days, evs]
+            let d = b.split('|'); 
             progs.push({
                 en: d[0] === '1',
                 on: d[1],
                 off: d[2],
                 days: d[3].split(',').map(Number).filter(x => !isNaN(x)),
-                evs: d[4].split(',').map(x => x === '1')
+                evs: d[4].split(',').map(x => x === '1'),
+                nombre: d[5] || 'Zona Riego'
             });
         });
         renderP(false);
     }
 
-    // Convierte el JSON a una cadena compacta para mandársela al Arduino
     function guardarYEnviarAlArduino() {
         if(progs.length === 0) {
             if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/progs_save', 'VACIO', {retain:true});
@@ -236,7 +236,8 @@
             let en = p.en ? '1' : '0';
             let days = p.days.join(',');
             let evs = p.evs.map(v => v ? '1' : '0').join(',');
-            return `${en}|${p.on}|${p.off}|${days}|${evs}`;
+            let nombreLimpiado = p.nombre.replace(/[;|]/g, ''); 
+            return `${en}|${p.on}|${p.off}|${days}|${evs}|${nombreLimpiado}`;
         }).join(';');
         
         if(mqttClient && mqttClient.connected) {
@@ -274,31 +275,31 @@
             vH += '</div></div>';
         }
         document.getElementById('valvulas').innerHTML = vH;
-        document.getElementById('datos-consumo').innerHTML = `<div class='card'>📊 Tráfico Ráfaga: ${p[9]||'0.00'} KB | Total Acumulado: ${p[10]||'0.000'} MB</div>`;
+        document.getElementById('datos-consumo').innerHTML = `<div class='card'>📊 Tráfico Datos: ${p[9]||'0.00'} KB | ${p[10]||'0.000'} MB</div>`;
     }
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
 
     function addP(){ 
         if(progs.length >= 5) return alert("Máximo 5 programas."); 
-        progs.push({on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
+        progs.push({nombre: 'Zona Riego', on:'08:00', off:'08:30', evs:[true,false,false], days:[1,2,3,4,5], en:true}); 
         renderP(true); 
     }
     function tglEv(pIdx, vIdx) { progs[pIdx].evs[vIdx] = !progs[pIdx].evs[vIdx]; renderP(true); }
     function tglDay(pIdx, dIdx){ let pos = progs[pIdx].days.indexOf(dIdx); if(pos > -1) progs[pIdx].days.splice(pos, 1); else progs[pIdx].days.push(dIdx); renderP(true); }
     function eliminarP(index) { progs.splice(index, 1); renderP(true); }
-    function actualizarHoraProg(index, tipo, valor) { progs[index][tipo] = valor; renderP(true); }
+    function cambiarNombreProg(index, valor) { progs[index].nombre = valor; } 
 
     function renderP(subirAlArduino = false){ 
         if(subirAlArduino) guardarYEnviarAlArduino();
 
         let h = ''; 
-        if(progs.length === 0) { document.getElementById('listaProg').innerHTML = "<p style='color:#8b949e;font-size:13px;padding:10px;'>No hay programas guardados en el equipo.</p>"; return; }
+        if(progs.length === 0) { document.getElementById('listaProg').innerHTML = "<p style='color:#8b949e;font-size:13px;padding:10px;'>No hay programas configurados.</p>"; return; }
         
         progs.forEach((p, i) => { 
             h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
                 <div class='prog-header'>
-                    <div class='prog-title'>⚙️ PROG ${i+1}</div>
+                    <input type='text' class='prog-title-input' value='${p.nombre}' placeholder='Nombre del programa' onchange='cambiarNombreProg(${i}, this.value); renderP(true)'>
                     <label class="switch">
                         <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP(true)'>
                         <span class="slider"></span>
@@ -306,9 +307,9 @@
                     <button class='btn-delete' onclick='eliminarP(${i})'>🗑️</button>
                 </div>
                 <div class='prog-time-row'>
-                    ⏱️ <input type='time' value='${p.on}' onchange='actualizarHoraProg(${i}, "on", this.value)'> 
+                    ⏱️ <input type='time' value='${p.on}' onchange='progs[${i}].on=this.value; renderP(true)'> 
                     <span>→</span> 
-                    <input type='time' value='${p.off}' onchange='actualizarHoraProg(${i}, "off", this.value)'>
+                    <input type='time' value='${p.off}' onchange='progs[${i}].off=this.value; renderP(true)'>
                 </div>
                 <div style='display:flex; gap:5px; flex-wrap:wrap;'>`; 
             ['D','L','M','X','J','V','S'].forEach((d, idx) => { 
