@@ -29,19 +29,10 @@
         .chart-scroll-container::-webkit-scrollbar-track { background: #161b22; }
         .chart-scroll-container::-webkit-scrollbar-thumb { background-color: #30363d; border-radius: 3px; }
         
-        .chart-wrapper {
-            position: relative;
-            height: 160px;
-            min-width: 600px; 
-            width: 100%;
-        }
-
+        .chart-wrapper { position: relative; height: 160px; min-width: 600px; width: 100%; }
         input[type=time], input[type=password], input[type=text], select{background:#0d1117; color:white; border:1px solid #30363d; padding:6px; border-radius:5px; text-align:center;}
         
-        #login-screen {
-            max-width: 320px; margin: 100px auto; padding: 25px; 
-            background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-        }
+        #login-screen { max-width: 320px; margin: 100px auto; padding: 25px; background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
         #app-content { display: none; } 
         .error-msg { color: #f85149; font-size: 13px; margin-top: 10px; display: none; }
         
@@ -53,7 +44,7 @@
         }
         .prog-card.enabled { border-left-color: #2ea043; }
         .prog-header { display: flex; justify-content: space-between; align-items: center; }
-        .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .prog-title { font-weight: bold; color: #f0f6fc; font-size: 14px; }
         .prog-time-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8b949e; }
         
         .day-circle {
@@ -68,12 +59,7 @@
             color: #8b949e; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;
         }
         .ev-tag.active { background: rgba(56, 139, 253, 0.15); border-color: #58a6ff; color: #58a6ff; }
-        
-        .btn-delete {
-            background: none; border: none; color: #f85149; cursor: pointer;
-            font-size: 16px; padding: 4px; border-radius: 4px; transition: background 0.2s;
-        }
-        .btn-delete:hover { background: rgba(248, 81, 73, 0.15); }
+        .btn-delete { background: none; border: none; color: #f85149; cursor: pointer; font-size: 16px; padding: 4px; }
         
         .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -82,21 +68,10 @@
         input:checked + .slider { background-color: #2ea043; border-color: #2ea043; }
         input:checked + .slider:before { transform: translateX(14px); background-color: white; }
 
-        .weather-box {
-            background: #161b22; border: 1px solid #30363d; padding: 10px; 
-            border-radius: 8px; margin: 10px auto; max-width: 860px;
-            display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
-        }
+        .weather-box { background: #161b22; border: 1px solid #30363d; padding: 10px; border-radius: 8px; margin: 10px auto; max-width: 860px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
         .aemet-info { color: #58a6ff; font-weight: bold; font-size: 14px;}
         .cp-selector { display: flex; gap: 5px; align-items: center;}
-
-        #listaProg {
-            max-height: 260px; overflow-y: auto; padding: 10px;
-            scrollbar-width: thin; scrollbar-color: #30363d #161b22;
-        }
-        #listaProg::-webkit-scrollbar { width: 6px; }
-        #listaProg::-webkit-scrollbar-track { background: #161b22; }
-        #listaProg::-webkit-scrollbar-thumb { background-color: #30363d; border-radius: 3px; }
+        #listaProg { max-height: 260px; overflow-y: auto; padding: 10px; scrollbar-width: thin; scrollbar-color: #30363d #161b22; }
     </style>
 </head>
 <body>
@@ -116,9 +91,7 @@
         <div style="font-size: 14px;">
             ⏰ <span id='hora'>--:--:--</span> | 🌡️ Sonda: <span id='temp' class='on'>--</span>°C
         </div>
-        
         <span id="aemet-prediccion" class="aemet-info">🌤️ Cargando clima...</span>
-        
         <div class="cp-selector">
             <input type="text" id="cpInput" placeholder="50461" style="width: 80px;" maxlength="5">
             <select id="municipioSelect" style="max-width: 150px; display: none;" onchange="cambiarMunicipioManual()"></select>
@@ -130,8 +103,8 @@
 
     <div class='container'>
         <details open>
-            <summary>📅 PROGRAMACIÓN DE RIEGO</summary>
-            <div id='listaProg'></div>
+            <summary>📅 PROGRAMACIÓN EN ARDUINO (Autónoma)</summary>
+            <div id='listaProg'>Cargando programas del equipo...</div>
             <button class='btn active' style='margin: 4px 10px 14px 10px; width:calc(100% - 20px); height: 38px; font-size: 13px;' onclick='addP()'>+ AÑADIR PROGRAMA NUEVO</button>
         </details>
         
@@ -140,27 +113,20 @@
         
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px;">Historial Sonda 24h (°C)</strong>
-            <div class="chart-scroll-container">
-                <div class="chart-wrapper">
-                    <canvas id='myChart'></canvas>
-                </div>
-            </div>
+            <div class="chart-scroll-container"><div class="chart-wrapper"><canvas id='myChart'></canvas></div></div>
         </div>
 
         <div class='card chart-card'>
             <strong style="display:block; margin-bottom:4px; color: #58a6ff;">Previsión Pluviometría (mm o l/m²)</strong>
-            <div class="chart-scroll-container">
-                <div class="chart-wrapper">
-                    <canvas id='rainChart'></canvas>
-                </div>
-            </div>
+            <div class="chart-scroll-container"><div class="chart-wrapper"><canvas id='rainChart'></canvas></div></div>
         </div>
     </div>
 </div>
 
 <script>
     const CLAVE_CORRECTA = "1234";
-    let progs = []; // Ahora inicia vacío y se sincroniza por MQTT
+    let progs = []; 
+    let mqttClient;
 
     function verificarPassword() {
         const input = document.getElementById('passInput').value;
@@ -168,14 +134,9 @@
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
             conectarMQTT();
-            
             let cpGuardado = localStorage.getItem('riegocp') || '50461';
             document.getElementById('cpInput').value = cpGuardado;
             buscarPorCodigoPostal();
-            
-            // Carga inicial de respaldo local por si acaso
-            progs = JSON.parse(localStorage.getItem('riegodb') || '[]');
-            renderP(false); 
         } else {
             document.getElementById('error').style.display = 'block';
             document.getElementById('passInput').value = '';
@@ -230,78 +191,82 @@
         } catch(e) { document.getElementById("aemet-prediccion").innerHTML = `⚠️ Clima offline`; }
     }
 
-    function actualizarGraficaLluvia(listaValores) {
-        let horaActual = new Date().getHours();
-        let etiquetasLluvia = [];
-        for (let i = 0; i < 24; i++) { etiquetasLluvia.push(((horaActual + i) % 24) + 'h'); }
-        rainChart.data.labels = etiquetasLluvia;
-        rainChart.data.datasets[0].data = listaValores;
-        rainChart.update('none');
-    }
-
-    let mqttClient;
     function conectarMQTT() {
         mqttClient = mqtt.connect('wss://public:public@public.cloud.shiftr.io', {
             clientId: 'web-cvh-' + Math.random().toString(16).substr(2, 4)
         });
         mqttClient.on('connect', () => {
-            document.getElementById('status').innerHTML = "🟢 CONECTADO A SHIFTR.IO";
+            document.getElementById('status').innerHTML = "🟢 CONECTADO | SINCRONIZADO CON ARDUINO";
             document.getElementById('status').style.color = "#3fb950";
             mqttClient.subscribe('CVH/riego/data');
-            mqttClient.subscribe('CVH/riego/progs'); // Canal exclusivo para sincronizar programas
+            mqttClient.subscribe('CVH/riego/progs'); 
         });
         mqttClient.on('message', (topic, message) => {
             if(topic === 'CVH/riego/data') up(message.toString());
-            if(topic === 'CVH/riego/progs') {
-                try {
-                    // Escuchamos los cambios que hacen otros dispositivos
-                    progs = JSON.parse(message.toString());
-                    renderP(false); // Renderizamos sin volver a publicar para evitar bucles infinitos
-                } catch(e) { console.log("Error sincronizando programas"); }
-            }
+            if(topic === 'CVH/riego/progs') parsingProgsDesdeArduino(message.toString());
         });
     }
 
-    const ctx = document.getElementById('myChart').getContext('2d');
-    const myChart = new Chart(ctx, { 
-        type: 'line', 
-        data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#ffa040', tension: 0.4, fill: true, backgroundColor: 'rgba(255, 160, 64, 0.08)', pointRadius:2 }] }, 
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } 
-    });
+    // Traduce la cadena compacta del Arduino al JSON de la Web
+    function parsingProgsDesdeArduino(payload) {
+        if(!payload || payload === "VACIO") { progs = []; renderP(false); return; }
+        let bloques = payload.split(';');
+        progs = [];
+        bloques.forEach(b => {
+            if(!b) return;
+            let d = b.split('|'); // [en, on, off, days, evs]
+            progs.push({
+                en: d[0] === '1',
+                on: d[1],
+                off: d[2],
+                days: d[3].split(',').map(Number).filter(x => !isNaN(x)),
+                evs: d[4].split(',').map(x => x === '1')
+            });
+        });
+        renderP(false);
+    }
 
+    // Convierte el JSON a una cadena compacta para mandársela al Arduino
+    function guardarYEnviarAlArduino() {
+        if(progs.length === 0) {
+            if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/progs_save', 'VACIO', {retain:true});
+            return;
+        }
+        let payload = progs.map(p => {
+            let en = p.en ? '1' : '0';
+            let days = p.days.join(',');
+            let evs = p.evs.map(v => v ? '1' : '0').join(',');
+            return `${en}|${p.on}|${p.off}|${days}|${evs}`;
+        }).join(';');
+        
+        if(mqttClient && mqttClient.connected) {
+            mqttClient.publish('CVH/riego/progs_save', payload, { retain: true });
+        }
+    }
+
+    const ctx = document.getElementById('myChart').getContext('2d');
+    const myChart = new Chart(ctx, { type: 'line', data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#ffa040', tension: 0.4, fill: true, backgroundColor: 'rgba(255, 160, 64, 0.08)', pointRadius:2 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } });
     const ctxRain = document.getElementById('rainChart').getContext('2d');
-    const rainChart = new Chart(ctxRain, { 
-        type: 'line', 
-        data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.2)', pointRadius:2 }] }, 
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } 
-    });
+    const rainChart = new Chart(ctxRain, { type: 'line', data: { labels: Array(24).fill(''), datasets: [{ data: Array(24).fill(0), borderColor: '#58a6ff', tension: 0.3, fill: true, backgroundColor: 'rgba(88, 166, 255, 0.2)', pointRadius:2 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, ticks:{font:{size:9}, color:'#8b949e'} }, x: { ticks:{font:{size:9}, color:'#8b949e'} } }, plugins: { legend: {display:false} } } });
 
     function up(data){
         let p = data.split('|');
         if(p.length < 8) return;
         document.getElementById('temp').innerHTML = p[0];
         document.getElementById('hora').innerHTML = p[7];
-        
-        let horaActual = parseInt(p[7].split(':')[0]); 
-        if(isNaN(horaActual)) horaActual = new Date().getHours();
-        
+        let horaActual = parseInt(p[7].split(':')[0]) || new Date().getHours();
         let lasHorasLabels = [];
         for(let i = 23; i >= 0; i--) { lasHorasLabels.push(((horaActual - i + 24) % 24) + 'h'); }
-        
         if(p[8]){ 
             let rawData = p[8].split(',').map(Number);
             let rotatedData = [];
             for(let i = 23; i >= 0; i--) { rotatedData.push(rawData[(horaActual - i + 24) % 24] || 0); }
-            myChart.data.labels = lasHorasLabels; 
-            myChart.data.datasets[0].data = rotatedData; 
-            myChart.update('none'); 
+            myChart.data.labels = lasHorasLabels; myChart.data.datasets[0].data = rotatedData; myChart.update('none'); 
         }
-        
         let vH=''; 
         for(let i=1; i<=3; i++){
             let estadoValvula = p[i] == '1' ? 'on' : 'off';
-            let textoValvula = p[i] == '1' ? '💧 Abierta' : '❌ Cerrada';
-            vH += `<div class='card'><b>🚰 EV ${i}</b> <span class='${estadoValvula}' style='float:right; font-size:12px; font-weight:bold;'>${textoValvula}</span><div class='btn-group'>`;
+            vH += `<div class='card'><b>🚰 EV ${i}</b> <span class='${estadoValvula}' style='float:right; font-size:12px; font-weight:bold;'>${p[i] == '1' ? '💧 Abierta' : '❌ Cerrada'}</span><div class='btn-group'>`;
             [0,1,2].forEach(m => {
                 let modoActivo = p[i+3] == m ? 'active' : '';
                 vH += `<button class='btn ${modoActivo}' onclick='enviarComando("SET_M:${i}:${m}")'>${m==0?'OFF':m==1?'ON':'AUTO'}</button>`;
@@ -309,20 +274,10 @@
             vH += '</div></div>';
         }
         document.getElementById('valvulas').innerHTML = vH;
-        document.getElementById('datos-consumo').innerHTML = `<div class='card'>📊 Tráfico: ${p[9]||'0.00'} KB | Total: ${p[10]||'0.000'} MB</div>`;
+        document.getElementById('datos-consumo').innerHTML = `<div class='card'>📊 Tráfico Ráfaga: ${p[9]||'0.00'} KB | Total Acumulado: ${p[10]||'0.000'} MB</div>`;
     }
 
     function enviarComando(cmd) { if(mqttClient && mqttClient.connected) mqttClient.publish('CVH/riego/cmd', cmd); }
-
-    function tick(){
-        if(document.getElementById('app-content').style.display !== 'block') return;
-        let hStr = document.getElementById('hora').innerHTML;
-        if(hStr == '--:--:--') return;
-        let cur = hStr.substring(0,5), curD = new Date().getDay(), ex = [0,0,0];
-        progs.forEach(p => { if(p.en && p.days.includes(curD) && cur >= p.on && cur < p.off){ p.evs.forEach((v, idx) => { if(v) ex[idx] = 1; }); } });
-        enviarComando(`AUTO:${ex[0]}:${ex[1]}:${ex[2]}`);
-    }
-    setInterval(tick, 5000);
 
     function addP(){ 
         if(progs.length >= 5) return alert("Máximo 5 programas."); 
@@ -334,20 +289,16 @@
     function eliminarP(index) { progs.splice(index, 1); renderP(true); }
     function actualizarHoraProg(index, tipo, valor) { progs[index][tipo] = valor; renderP(true); }
 
-    // Controla si los cambios se emiten a los otros dispositivos
-    function renderP(debePublicar = true){ 
-        localStorage.setItem('riegodb', JSON.stringify(progs)); 
-        
-        // Si el cambio lo ha hecho el usuario actual, lo notificamos por MQTT al resto
-        if(debePublicar && mqttClient && mqttClient.connected) {
-            mqttClient.publish('CVH/riego/progs', JSON.stringify(progs), { retain: true });
-        }
+    function renderP(subirAlArduino = false){ 
+        if(subirAlArduino) guardarYEnviarAlArduino();
 
         let h = ''; 
+        if(progs.length === 0) { document.getElementById('listaProg').innerHTML = "<p style='color:#8b949e;font-size:13px;padding:10px;'>No hay programas guardados en el equipo.</p>"; return; }
+        
         progs.forEach((p, i) => { 
             h += `<div class='prog-card ${p.en ? 'enabled' : ''}'>
                 <div class='prog-header'>
-                    <div class='prog-title'>⚙️ PROGRAMA ${i+1}</div>
+                    <div class='prog-title'>⚙️ PROG ${i+1}</div>
                     <label class="switch">
                         <input type="checkbox" ${p.en ? 'checked' : ''} onchange='progs[${i}].en=this.checked; renderP(true)'>
                         <span class="slider"></span>
